@@ -20,6 +20,10 @@ def FPP (n : ℕ) (a : ZMod n) : Prop :=
 instance FPP.decidable {n : ℕ} {a : ZMod n} :
   Decidable (FPP n a)
 
+/-- A prime is a Fermat probable prime to any nonzero base. -/
+theorem FPP.of_prime {p : ℕ} [Fact p.Prime] {a : ZMod p} (ha : a ≠ 0) :
+  FPP p a
+
 def FPP.Carmichael (n : ℕ) : Prop :=
   ∀ a : (ZMod n)ˣ, FPP n a
 ```
@@ -36,8 +40,12 @@ def SPP (n : ℕ) (a : ZMod n) : Prop :=
 instance SPP.decidable {n : ℕ} {a : ZMod n} :
   Decidable (SPP n a)
 
+/-- A prime is a strong probable prime to any nonzero base. -/
+theorem SPP.of_prime {p : ℕ} [Fact p.Prime] {a : ZMod p} (ha : a ≠ 0) :
+  SPP p a
+
 /-- The proportion of Miller–Rabin nonwitnesses of composite `n` is at most 1/4. -/
-theorem card_SPP_of_not_prime {n : ℕ} [Fact (n ≥ 2)] (ho : Odd n) (hnp : ¬n.Prime) :
+theorem SPP.card_SPP_of_not_prime {n : ℕ} [Fact (n ≥ 2)] (ho : Odd n) (hnp : ¬n.Prime) :
   Fintype.card {a // SPP n a} * 4 ≤ n - 1
 ```
 
@@ -53,7 +61,7 @@ def runMillerRabin (n r : ℕ) : IO Bool
 ## Possible extensions
 
 1. Show `millerRabin` has probability of correctness aribitrarily close to `1` when `r` large enough and the random generator `g` is uniform and independent enough
-2. Verify ECPP certificates (useful for proofs actually needing a particular large prime)
+2. Verify Pratt, ECPP, Pocklington certificates (useful for proofs actually needing a particular large prime)
 3. More primality tests: Euler/Euler–Jacobi, (strong) Lucas, Baillie–PSW, AKS
 4. Format, docstrings, simplify / abstract lemmas from some long proofs
 
@@ -61,4 +69,4 @@ def runMillerRabin (n r : ℕ) : IO Bool
 1. https://kconrad.math.uconn.edu/blurbs/ugradnumthy/carmichaelkorselt.pdf
 2. https://kconrad.math.uconn.edu/blurbs/ugradnumthy/millerrabin.pdf
 3. https://math.stackexchange.com/questions/487011/showing-that-a-homomorphism-between-groups-of-units-is-surjective
-4. And of course, mathlib
+4. Of course, mathlib
