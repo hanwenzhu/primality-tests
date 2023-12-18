@@ -89,7 +89,7 @@ theorem squarefree_of_carmichael [hn : NeZero n] (hc : Carmichael n) :
   have : p ^ (s + 2) * k - 1 > 0 := Nat.sub_pos_of_lt (by
     rw [add_comm, pow_add, mul_assoc, Nat.one_lt_mul_iff]
     use pos_pow_of_pos 2 pp.pos, hk ▸ mpos
-    left; exact Nat.one_lt_pow 2 p two_pos pp.one_lt)
+    left; exact Nat.one_lt_pow 2 p two_ne_zero pp.one_lt)
   rw [map_pow, map_one, map_one, ZMod.unitsMap_def, Units.ext_iff, Units.val_pow_eq_pow_val,
     Units.coe_map, ZMod.coe_unitOfCoprime, cast_add, cast_one, MonoidHom.coe_coe, map_add, map_one,
     map_natCast, Units.val_one, ← pow_one (p : ZMod (p ^ 2)), ← one_mul (_ ^ 1),

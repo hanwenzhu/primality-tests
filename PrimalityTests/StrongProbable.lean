@@ -188,7 +188,7 @@ section OfPrimePow
 theorem of_prime_pow_of_pow_sub {p m : ℕ} {a : ZMod (p ^ m)} [pp : Fact p.Prime]
     (hm : m > 0) (hp : p > 2) (ha : a ^ (p ^ m - 1) = 1) :
     SPP (p ^ m) a := by
-  have : Fact (p ^ m > 1) := ⟨Nat.one_lt_pow m p hm pp.out.one_lt⟩
+  have : Fact (p ^ m > 1) := ⟨Nat.one_lt_pow m p hm.ne' pp.out.one_lt⟩
   apply of_fpp_of_mul_self_eq_one ha
   intro x
   rcases lt_or_ge x.val (1 : ZMod (p ^ m)).val with hx₁ | hx₁
@@ -265,13 +265,13 @@ private noncomputable def rem (y : ZMod (p ^ (m + 1))) :
 
 private lemma cast_cast_pow {x : (ZMod (p ^ m))} :
     ((x : ZMod (p ^ (m + 1))) : ZMod (p ^ m)) = x :=
-  cast_cast_ZMod (pow_lt_pow pp.out.one_lt m.lt_succ_self).le
+  cast_cast_ZMod (pow_lt_pow_right pp.out.one_lt m.lt_succ_self).le
 
 private lemma lift_unique (x : (ZMod (p ^ m))ˣ) (hx : x ^ (p - 1) = 1) (y : (ZMod (p ^ (m + 1)))) :
     (y : ZMod (p ^ m)) = x ∧ y ^ (p - 1) = 1 ↔
       y = (x : ZMod (p ^ (m + 1))) - p ^ m * rem ((x : ZMod (p ^ (m + 1))) ^ (p - 1)) *
         ((x : ZMod (p ^ (m + 1))) ^ (p - 2))⁻¹ * (p - 1 : ZMod (p ^ (m + 1)))⁻¹ := by
-  have : Fact (1 < p ^ m) := ⟨m.one_lt_pow p hm pp.out.one_lt⟩
+  have : Fact (1 < p ^ m) := ⟨m.one_lt_pow p hm.ne' pp.out.one_lt⟩
   have := (rem ((x : ZMod (p ^ (m + 1))) ^ (p - 1))).2
   nth_rw 1 [← ZMod.castHom_apply (h := pow_dvd_pow p m.lt_succ_self.le)] at this
   rw [RingHom.map_pow, ZMod.castHom_apply, cast_cast_pow, ← sub_eq_iff_eq_add'] at this
@@ -377,7 +377,7 @@ private lemma s₀_spec [Fact (n ≥ 2)] : ∃ a : (ZMod n)ˣ, a ^ (2 ^ s₀ n *
 
 private lemma two_pow_s₀_lt [Fact (n ≥ 2)] (ho : Odd n) : 2 ^ s₀ n * oddPart (n - 1) < n - 1 := by
   conv_rhs => rw [← two_pow_val₂_mul_oddPart (n - 1)]
-  exact mul_lt_mul (pow_lt_pow_of_lt_right one_lt_two (s₀_lt_val₂ ho)) (le_refl _) oddPart_pos
+  exact mul_lt_mul (pow_lt_pow_right one_lt_two (s₀_lt_val₂ ho)) (le_refl _) oddPart_pos
     (Nat.zero_le _)
 
 private lemma le_s₀ {s : ℕ} [NeZero n] {a : (ZMod n)ˣ} (hs : s < val₂ (n - 1))

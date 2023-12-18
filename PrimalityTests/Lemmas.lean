@@ -181,7 +181,7 @@ lemma exists_pow_prime_dvd_and_coprime_of_odd (hn : n ≥ 2) (ho : Odd n) (hnp :
     · rw [mul_one] at hk; exact hnp ⟨p, s, pp.prime, spos, hk.symm⟩
     · exact ho.not_two_dvd_nat ⟨p ^ s, Nat.mul_comm _ _ ▸ hk⟩
   · apply lt_of_le_of_ne
-    · exact (self_le_pow one_le_two spos).trans (Nat.pow_le_pow_of_le_left pp.two_le s)
+    · exact (s.le_self_pow spos.ne' 2).trans (Nat.pow_le_pow_of_le_left pp.two_le s)
     · intro h
       exact ho.not_two_dvd_nat ⟨k, h ▸ hk⟩
 
