@@ -55,5 +55,5 @@
    "inputRev": null,
    "inherited": false,
    "configFile": "lakefile.lean"}],
- "name": "primality_tests",
+ "name": "«primality-tests»",
  "lakeDir": ".lake"}
