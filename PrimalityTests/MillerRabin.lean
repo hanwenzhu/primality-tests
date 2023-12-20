@@ -31,7 +31,9 @@ def millerRabin {gen : Type*} [RandomGen gen] (g : gen) (n r : ℕ) :
 
 /-- Runs Miller–Rabin on `n`, `r` times.
 Uses `StdGen` (so obviously don't use for cryptographic purposes). -/
-def runMillerRabin (n r : ℕ) : IO Bool := do
+def runMillerRabin (n r : ℕ) (seed : Option ℕ := none) : IO Bool := do
+  if let some seed := seed then
+    IO.setRandSeed seed
   let g ← IO.stdGenRef.get
   let (res, g) := millerRabin g n r
   IO.stdGenRef.set g
@@ -45,39 +47,24 @@ section Cli
 
 open Cli
 
-def runExhaustiveTest (p : Parsed) : IO UInt32 := do
-  let n := p.positionalArg! "n" |>.as! Nat
-  let v := val₂ (n - 1)
-  let o := oddPart (n - 1)
-  for a in List.range'TR 1 (n - 1) do
-    let _ := SPP.loopMulSelf v ((a : ZMod n).pow o)
-  return 0
-
 def runMillerRabinCmd (p : Parsed) : IO UInt32 := do
   let n := p.positionalArg! "n" |>.as! Nat
   let r := p.positionalArg! "r" |>.as! Nat
-  let res ← runMillerRabin n r
+  let seed := p.flag? "seed" |>.map (·.as! Nat)
+  let res ← runMillerRabin n r seed
   IO.println <| if res then "prime" else "composite"
   return 0
-
-def exhaustiveTestCmd := `[Cli|
-  "exhaustive-test" VIA runExhaustiveTest;
-  "Tests Miller–Rabin for all bases 0 < a < n."
-
-  ARGS:
-    n : Nat; "The candidate prime."
-]
 
 def millerRabinCmd := `[Cli|
   "miller-rabin" VIA runMillerRabinCmd;
   "Tests primality of a number using the Miller–Rabin primality test."
 
+  FLAGS:
+    seed : Nat; "Seed for the random number generator."
+
   ARGS:
     n : Nat; "The candidate prime."
     r : Nat; "Number of repeats."
-
-  SUBCOMMANDS:
-    exhaustiveTestCmd
 ]
 
 end Cli
