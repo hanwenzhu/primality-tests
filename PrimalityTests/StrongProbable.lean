@@ -13,97 +13,69 @@ Reference: https://kconrad.math.uconn.edu/blurbs/ugradnumthy/millerrabin.pdf
 
 open Nat
 
-/-- `n` is a *strong probable prime* to base `a`, if `a ^ d = 1` or `a ^ (2^s * d) = -1`, where
-`d` is odd, `s < s'`, and `s'` is such that `n - 1 = 2^s' * d`. -/
+/-- `n` is a *strong probable prime* to base `a`, if `a ^ d = 1` or `∃ s < s', a ^ (2 ^ s * d) = -1`
+where `d` is odd and `n - 1 = 2 ^ s' * d`. -/
 def SPP (n : ℕ) (a : ZMod n) : Prop :=
   a ^ oddPart (n - 1) = 1 ∨
   ∃ s : ℕ, s < val₂ (n - 1) ∧ a ^ (2 ^ s * oddPart (n - 1)) = -1
 
 namespace SPP
 
-scoped instance (n : ℕ) [hn : Fact (n ≥ 2)] : NeZero (n - 1) :=
-  ⟨(lt_pred_iff.mpr hn.out).ne'⟩
-
-scoped instance (n : ℕ) [hn : Fact (n ≥ 2)] : NeZero n :=
-  ⟨fun h ↦ two_pos.not_le (h ▸ hn.out)⟩
-
 section Decidable
 
 /-! ### Decidability of strong probable primality -/
 
-section LoopMulSelf
+section Loop
+
+open Option
 
 /-- The inner loop of Miller–Rabin. Evaluates to none if `b = 1` or one of `b`, ⋯, `b ^ 2 ^ (s - 1)`
-is `-1`; otherwise evaluates to `b ^ 2 ^ s`. Runs in $O(\log^3 n)$. -/
-def loopMulSelf {n : ℕ} (s : ℕ) (b : ZMod n) : Option (ZMod n) :=
+is `-1`; otherwise evaluates to `b ^ 2 ^ s`. Runs in $O(\log^3 n)$.
+
+Use `loop` if doing repeated tests on a fixed `n`, since we can precompute `val₂ (n - 1)` and
+`oddPart (n - 1)` (see `spp_iff_loop_eq_none`). -/
+def loop {n : ℕ} (s : ℕ) (b : ZMod n) : Option (ZMod n) :=
   match s with
   | zero => if b = 1 then none else b
-  | succ s => (loopMulSelf s b).bind fun x ↦ if x = -1 then none else x * x
+  | succ s => (loop s b).bind fun x ↦ if x = -1 then none else x * x
 
-theorem loopMulSelf_zero {n : ℕ} (b : ZMod n) : loopMulSelf 0 b = if b = 1 then none else b := rfl
-
-theorem loopMulSelf_succ {n : ℕ} (s : ℕ) (b : ZMod n) :
-    loopMulSelf s.succ b = (loopMulSelf s b).bind fun x ↦ if x = -1 then none else x * x := rfl
-
-theorem loopMulSelf_of_ne_none {n : ℕ} (s : ℕ) (b : ZMod n) (h : loopMulSelf s b ≠ none) :
-    loopMulSelf s b = some (b ^ 2 ^ s) := by
+lemma loop_eq_none_or {n : ℕ} (s : ℕ) (b : ZMod n) :
+    loop s b = none ∨ loop s b = some (b ^ 2 ^ s) := by
   induction' s with s ih
-  · revert h
-    rw [loopMulSelf_zero, Nat.pow_zero, _root_.pow_one]
-    split_ifs; exact fun h ↦ h rfl; exact fun _ ↦ rfl
-  · rw [loopMulSelf_succ] at *
-    have : loopMulSelf s b ≠ none := fun h' ↦ h (by rw [h']; rfl)
-    revert h
-    rw [ih this]
-    dsimp
-    split_ifs
-    · exact fun h ↦ h rfl
-    · intro; rw [Nat.pow_succ, pow_mul, pow_two]
+  · simp only [loop, ite_eq_left_iff, imp_false, not_not, zero_eq, _root_.pow_zero, pow_one,
+      ite_eq_right_iff, em]
+  · rw [loop]
+    rcases ih with ih | ih
+    · simp only [ih, none_bind, or_false]
+    · simp only [ih, some_bind, ite_eq_left_iff, imp_false, not_not, Nat.pow_succ, pow_mul,
+        pow_two, ite_eq_right_iff, em]
 
-theorem loopMulSelf_succ_eq_none_iff {n : ℕ} (s : ℕ) (b : ZMod n) :
-    loopMulSelf s.succ b = none ↔ loopMulSelf s b = none ∨ b ^ 2 ^ s = -1 := by
-  rw [loopMulSelf_succ]
-  constructor
-  · intro h
-    rw [or_iff_not_imp_left]
-    intro hn
-    rw [loopMulSelf_of_ne_none s b hn, Option.some_bind, ite_eq_left_iff] at h
-    simp only at h
-    exact not_not.mp h
-  · rintro (h | h)
-    · rw [h, Option.none_bind]
-    · by_cases hn : loopMulSelf s b = none
-      · rw [hn, Option.none_bind]
-      · rw [loopMulSelf_of_ne_none s b hn, h]
-        simp only [ite_true, Option.some_bind]
+lemma loop_succ_eq_none_iff {n : ℕ} (s : ℕ) (b : ZMod n) :
+    loop s.succ b = none ↔ loop s b = none ∨ b ^ 2 ^ s = -1 := by
+  rw [loop]
+  rcases loop_eq_none_or s b with hn | hn
+  · simp only [hn, none_bind, true_or]
+  · simp only [hn, some_bind, ite_eq_left_iff, imp_false, not_not, false_or]
 
-theorem loopMulSelf_eq_none_iff {n : ℕ} (s : ℕ) (b : ZMod n) :
-    loopMulSelf s b = none ↔
-      b = 1 ∨ ∃ s' : ℕ, s' < s ∧ b ^ 2 ^ s' = -1 := by
+lemma loop_eq_none_iff {n : ℕ} (s : ℕ) (b : ZMod n) :
+    loop s b = none ↔ b = 1 ∨ ∃ s' : ℕ, s' < s ∧ b ^ 2 ^ s' = -1 := by
   induction' s with s ih
-  · rw [loopMulSelf_zero]
-    simp only [ite_eq_left_iff, zero_eq, not_lt_zero', _root_.pow_zero, pow_one, false_and,
+  · simp only [loop, ite_eq_left_iff, imp_false, not_not, zero_eq, not_lt_zero', false_and,
       exists_const, or_false]
-    exact not_not
-  rw [loopMulSelf_succ_eq_none_iff, ih, or_assoc]
-  apply or_congr_right
-  constructor
-  · rintro (⟨s', hs', hs''⟩ | h)
-    · exact ⟨s', hs'.trans (lt_succ_self s), hs''⟩
-    · exact ⟨s, lt_succ_self s, h⟩
-  · rintro ⟨s', hs', hs''⟩
-    by_cases hs's : s' = s
-    · right; rw [← hs's]; exact hs''
-    · left; exact ⟨s', lt_of_le_of_ne (lt_succ.mp hs') hs's, hs''⟩
+  · simp only [loop_succ_eq_none_iff, ih, or_comm, ← or_assoc, lt_succ, le_iff_eq_or_lt,
+      or_and_right, exists_or, exists_eq_left]
 
-end LoopMulSelf
+end Loop
+
+/-- `loop` implements SPP. -/
+theorem spp_iff_loop_eq_none {n : ℕ} (a : ZMod n) :
+    SPP n a ↔ loop (val₂ (n - 1)) (a.pow (oddPart (n - 1))) = none := by
+  simp only [SPP, pow_mul, pow_right_comm, ZMod.pow_eq, loop_eq_none_iff]
 
 /-- The algorithm that decides `SPP` in $O(\log^3 n)$. -/
 instance decidable {n : ℕ} {a : ZMod n} :
     Decidable (SPP n a) := by
-  simp_rw [SPP, mul_comm, pow_mul, ← loopMulSelf_eq_none_iff]
-  -- Use fast exponentiation
-  rewrite [← ZMod.pow_eq]
+  rw [spp_iff_loop_eq_none]
   exact Option.decidableEqNone
 
 -- Test on large prime
@@ -150,7 +122,7 @@ theorem orderOf_dvd_sub_one {n : ℕ} {a : ZMod n} (h : SPP n a) :
     orderOf a ∣ n - 1 :=
   h.fpp.orderOf_dvd_sub_one
 
-theorem isUnit {n : ℕ} [Fact (n ≥ 2)] {a : ZMod n} (h : SPP n a) :
+theorem isUnit {n : ℕ} [n.AtLeastTwo] {a : ZMod n} (h : SPP n a) :
     IsUnit a :=
   h.fpp.isUnit
 
@@ -180,7 +152,7 @@ lemma nonwitnessGroup_le (K : Subgroup (ZMod n)ˣ) (h : ∀ a : (ZMod n)ˣ, SPP 
 lemma spp_unit_iff {a : (ZMod n)ˣ} :
     SPP n a ↔ a ^ oddPart (n - 1) = 1 ∨
       ∃ s : ℕ, s < val₂ (n - 1) ∧ a ^ (2 ^ s * oddPart (n - 1)) = -1 := by
-  simp_rw [Units.ext_iff, Units.val_pow_eq_pow_val, Units.val_one, Units.coe_neg_one]
+  simp [Units.ext_iff]
   rfl
 
 section OfPrimePow
@@ -245,8 +217,8 @@ theorem nonwitnessGroup_of_prime_pow (hp : p > 2) :
     rw [← orderOf_units]
     exact orderOf_dvd_sub_one ha
   · intro a ha
-    rw [MonoidHom.mem_ker, powMonoidHom_apply, Units.ext_iff, Units.val_one,
-      Units.val_pow_eq_pow_val] at ha
+    rw [MonoidHom.mem_ker, powMonoidHom_apply, Units.ext_iff] at ha
+    push_cast at ha
     exact mem_nonwitnessGroup (of_prime_pow_of_pow_sub hm hp (by rw [hk, pow_mul, ha, one_pow]))
 
 /-
@@ -258,7 +230,7 @@ private noncomputable def rem (y : ZMod (p ^ (m + 1))) :
     { r : ZMod (p ^ (m + 1)) //
       y = ((y : ZMod (p ^ m)) : ZMod (p ^ (m + 1))) + (p : ZMod (p ^ (m + 1))) ^ m * r } := by
   have := ZMod.nat_cast_val (R := ZMod (p ^ m)) y
-  obtain ⟨r, hr⟩ := Classical.indefiniteDescription _ ((ZMod.nat_coe_zmod_eq_iff _ _ _).mp this)
+  choose r hr using (ZMod.nat_coe_zmod_eq_iff _ _ _).mp this
   apply_fun Nat.cast (R := ZMod (p ^ (m + 1))) at hr
   rw [ZMod.nat_cast_zmod_val, cast_add, ← ZMod.cast_eq_val, cast_mul, cast_pow] at hr
   exact ⟨(r : ZMod (p ^ (m + 1))), hr⟩
@@ -285,8 +257,8 @@ private lemma lift_unique (x : (ZMod (p ^ m))ˣ) (hx : x ^ (p - 1) = 1) (y : (ZM
         apply Coprime.pow_right
         rw [coprime_self_sub_left pp.out.pos]
         exact coprime_one_left p
-      have := (ZMod.unitOfCoprime _ this).isUnit
-      rwa [ZMod.coe_unitOfCoprime, cast_sub pp.out.pos, cast_one] at this
+      simpa only [ZMod.coe_unitOfCoprime, cast_sub pp.out.pos, cast_one] using
+        (ZMod.unitOfCoprime _ this).isUnit
     · by_cases hp : p = 2
       · simp only [hp, Nat.sub_self, _root_.pow_zero, isUnit_one]
       rw [isUnit_pow_iff (Nat.sub_ne_zero_of_lt (lt_of_le_of_ne pp.out.two_le (Ne.symm hp)))]
@@ -294,8 +266,8 @@ private lemma lift_unique (x : (ZMod (p ^ m))ˣ) (hx : x ^ (p - 1) = 1) (y : (ZM
         apply Coprime.pow_right
         rw [← coprime_pow_right_iff hm]
         exact ZMod.val_coe_unit_coprime x
-      have := (ZMod.unitOfCoprime _ this).isUnit
-      rwa [ZMod.coe_unitOfCoprime, ← ZMod.cast_eq_val] at this
+      simpa only [ZMod.coe_unitOfCoprime, ZMod.nat_cast_val] using
+        (ZMod.unitOfCoprime _ this).isUnit
   have hrem := (rem (y : ZMod (p ^ (m + 1)))).2
   constructor
   · intro ⟨h₁, h₂⟩
@@ -343,8 +315,6 @@ private lemma card_ker_powMonoidHom_sub_one_of_prime_pow :
     · intro ⟨y, hy⟩
       rw [Subtype.mk.injEq, Units.ext_iff]
       set x := ZMod.unitsMap (pow_dvd_pow p m.lt_succ_self.le) y
-      change (x : ZMod (p ^ (m + 1))) - p ^ m * rem ((x : ZMod (p ^ (m + 1))) ^ (p - 1)) *
-        ((x : ZMod (p ^ (m + 1))) ^ (p - 2))⁻¹ * (p - 1 : ZMod (p ^ (m + 1)))⁻¹ = y
       refine ((lift_unique hm x ?_ _).mp ⟨rfl, ?_⟩).symm
       · apply_fun ZMod.unitsMap (pow_dvd_pow p m.lt_succ_self.le) at hy
         rwa [map_pow, map_one] at hy
@@ -368,14 +338,14 @@ private def s₀ (n : ℕ) [NeZero n] : ℕ :=
   -- Note: [NeZero n] is used here to deduce decidability of h
   Nat.findGreatest (fun s ↦ ∃ a : (ZMod n)ˣ, a ^ (2 ^ s * oddPart (n - 1)) = -1) (val₂ (n - 1) - 1)
 
-private lemma s₀_lt_val₂ [Fact (n ≥ 2)] (ho : Odd n) : s₀ n < val₂ (n - 1) :=
+private lemma s₀_lt_val₂ [n.AtLeastTwo] (ho : Odd n) : s₀ n < val₂ (n - 1) :=
   lt_of_le_pred (val₂_of_even (Nat.Odd.sub_odd ho ⟨0, rfl⟩)) (findGreatest_le (val₂ (n - 1) - 1))
 
-private lemma s₀_spec [Fact (n ≥ 2)] : ∃ a : (ZMod n)ˣ, a ^ (2 ^ s₀ n * oddPart (n - 1)) = -1 :=
+private lemma s₀_spec [n.AtLeastTwo] : ∃ a : (ZMod n)ˣ, a ^ (2 ^ s₀ n * oddPart (n - 1)) = -1 :=
   findGreatest_spec (P := fun s ↦ ∃ a, a ^ (2 ^ s * oddPart (n - 1)) = -1) (Nat.zero_le _) ⟨-1,
     by rw [Nat.pow_zero, one_mul, odd_oddPart.neg_one_pow]⟩
 
-private lemma two_pow_s₀_lt [Fact (n ≥ 2)] (ho : Odd n) : 2 ^ s₀ n * oddPart (n - 1) < n - 1 := by
+private lemma two_pow_s₀_lt [n.AtLeastTwo] (ho : Odd n) : 2 ^ s₀ n * oddPart (n - 1) < n - 1 := by
   conv_rhs => rw [← two_pow_val₂_mul_oddPart (n - 1)]
   exact mul_lt_mul (pow_lt_pow_right one_lt_two (s₀_lt_val₂ ho)) (le_refl _) oddPart_pos
     (Nat.zero_le _)
@@ -416,7 +386,7 @@ instance : DecidablePred (· ∈ F n) := by
   simp_rw [F, MonoidHom.mem_ker]
   infer_instance
 
-private theorem G_lt_F_of_not_isPrimePow [hn : Fact (n ≥ 2)] (ho : Odd n) (hnp : ¬IsPrimePow n) :
+private theorem G_lt_F_of_not_isPrimePow [hn : n.AtLeastTwo] (ho : Odd n) (hnp : ¬IsPrimePow n) :
     G n < F n := by
   apply lt_of_le_of_ne
   · intro a
@@ -429,7 +399,7 @@ private theorem G_lt_F_of_not_isPrimePow [hn : Fact (n ≥ 2)] (ho : Odd n) (hnp
     · rw [one_pow, one_pow]
     · rw [neg_one_sq, one_pow]
   · let ⟨p, s, k, _, _, hpsk, cop, hk, hps⟩ :=
-      exists_pow_prime_dvd_and_coprime_of_odd hn.out ho hnp
+      exists_pow_prime_dvd_and_coprime_of_odd hn.prop ho hnp
     let ⟨a₀, ha₀⟩ := s₀_spec (n := n)
     let a := (chineseRemainderₓ cop).symm (ZMod.unitsMap ⟨k, hpsk⟩ a₀, 1)
     let a' := ZMod.unitsMap (dvd_of_eq hpsk) a
@@ -540,7 +510,7 @@ private theorem H_inf_H_lt_H_inf_H_inf_H {m₁ m₂ m₃ : ℕ} [NeZero n]
   have h₃n := dvd_of_mul_left_dvd h₁₂₃n
   have h₁₂₃'n := mul_assoc m₁ m₂ m₃ ▸ h₁₂₃n
   have h₂₃n := dvd_of_mul_left_dvd h₁₂₃'n
-  have : Fact (n ≥ 2) := ⟨h₁.le.trans (le_of_dvd (pos_iff_ne_zero.mpr NeZero.out) h₁n)⟩
+  have : n.AtLeastTwo := ⟨h₁.le.trans (le_of_dvd (pos_iff_ne_zero.mpr NeZero.out) h₁n)⟩
   apply lt_of_le_of_ne (inf_le_inf_right _ (H_mul_le_H_inf_H h₁₂n))
   intro hH
   let ⟨a₀, ha₀⟩ := s₀_spec (n := n)
@@ -580,7 +550,7 @@ private theorem H_lt_H_inf_H {m₁ m₂ : ℕ} [NeZero n] (h₁ : m₁ > 2) (h�
   apply H_inf_H_lt_H_inf_H_inf_H h₁ h₂ <;> rwa [mul_one]
 
 -- Carmichael numbers are of the form of the lemma
-private theorem eq_mul_mul_of_carmichael [hn : Fact (n ≥ 2)] (hc : FPP.Carmichael n) :
+private theorem eq_mul_mul_of_carmichael [hn : n.AtLeastTwo] (hc : FPP.Carmichael n) :
     n.Prime ∨ ∃ m₁ m₂ m₃, n = m₁ * m₂ * m₃ ∧ m₁.Coprime m₂ ∧ m₁.Coprime m₃ ∧ m₂.Coprime m₃ ∧
       m₁ > 2 ∧ m₂ > 2 ∧ m₃ > 2 := by
     rcases FPP.length_factors_of_carmichael hc with _ | h
@@ -588,11 +558,11 @@ private theorem eq_mul_mul_of_carmichael [hn : Fact (n ≥ 2)] (hc : FPP.Carmich
     rcases FPP.not_isPrimePow_of_carmichael hc with _ | hnp
     · left; assumption
     have hsf := FPP.squarefree_of_carmichael hc
-    rcases hn.out.eq_or_lt with rfl | hn2
+    rcases hn.prop.eq_or_lt with rfl | hn2
     · left; exact prime_two
     have ho := FPP.odd_of_carmichael hn2 hc
     obtain ⟨p, s, k, pp, spos, rfl, pcop, hk, hps⟩ :=
-      exists_pow_prime_dvd_and_coprime_of_odd hn.out ho hnp
+      exists_pow_prime_dvd_and_coprime_of_odd hn.prop ho hnp
     obtain rfl : s = 1 := by
       by_contra hs
       apply pow_two p ▸ squarefree_iff_prime_squarefree.mp hsf p pp
@@ -617,7 +587,7 @@ private theorem eq_mul_mul_of_carmichael [hn : Fact (n ≥ 2)] (hc : FPP.Carmich
 
 end OfCarmichael
 
-theorem nonwitnessGroup_lt_lt_of_not_isPrimePow [Fact (n ≥ 2)] (ho : Odd n) (hnp : ¬IsPrimePow n) :
+theorem nonwitnessGroup_lt_lt_of_not_isPrimePow [n.AtLeastTwo] (ho : Odd n) (hnp : ¬IsPrimePow n) :
     ∃ K : Subgroup (ZMod n)ˣ, ∃ _ : Fintype K, nonwitnessGroup n < K ∧ K < ⊤ := by
   by_cases hc : FPP.Carmichael n
   · rcases eq_mul_mul_of_carmichael hc with hp | ⟨m₁, m₂, m₃, hn, h₁₂, h₁₃, h₂₃, h₁, h₂, h₃⟩
@@ -643,7 +613,7 @@ theorem nonwitnessGroup_lt_lt_of_not_isPrimePow [Fact (n ≥ 2)] (ho : Odd n) (h
       G n < F n := G_lt_F_of_not_isPrimePow ho hnp
     · exact F_lt_top_of_not_carmichael hc
 
-theorem card_nonwitnessGroup_of_not_prime [Fact (n ≥ 2)]
+theorem card_nonwitnessGroup_of_not_prime [n.AtLeastTwo]
     (ho : Odd n) (hnp : ¬n.Prime) (h9 : n ≠ 9) :
     Fintype.card (nonwitnessGroup n) * 4 ≤ φ n := by
   by_cases hpp : IsPrimePow n
@@ -675,7 +645,7 @@ theorem card_nonwitnessGroup_of_not_prime [Fact (n ≥ 2)]
 end NonwitnessGroup
 
 /-- The proportion of Miller–Rabin nonwitnesses of composite `n` is at most 1/4. -/
-theorem card_SPP_of_not_prime [hn : Fact (n ≥ 2)] (ho : Odd n) (hnp : ¬n.Prime) :
+theorem card_SPP_of_not_prime {n : ℕ} [hn : n.AtLeastTwo] (ho : Odd n) (hnp : ¬n.Prime) :
     Fintype.card {a // SPP n a} * 4 ≤ n - 1 := by
   by_cases h9 : n = 9
   · obtain rfl := h9
@@ -694,13 +664,11 @@ theorem card_SPP_of_not_prime [hn : Fact (n ≥ 2)] (ho : Odd n) (hnp : ¬n.Prim
     rw [Finset.card_union_eq, Finset.card_singleton, Finset.card_singleton]; decide
   · calc
     Fintype.card {a // SPP n a} * 4 ≤ Fintype.card (nonwitnessGroup n) * 4 :=
-      Nat.mul_le_mul_right 4 <| Fintype.card_le_of_injective (fun ⟨a, ha⟩ ↦
-        let a' := Classical.choose ha.isUnit
-        ⟨a', mem_nonwitnessGroup (Classical.choose_spec ha.isUnit ▸ ha)⟩)
-        fun ⟨a₁, ha₁⟩ ⟨a₂, ha₂⟩ h ↦
-          by rw [Subtype.mk_eq_mk, ← Classical.choose_spec (_ : IsUnit a₁), Subtype.mk.inj h,
-            Classical.choose_spec (_ : IsUnit a₂)]
+      Nat.mul_le_mul_right 4 <| Fintype.card_le_of_injective (fun ⟨a, ha⟩ ↦ by
+        choose a' ha' using ha.isUnit; exact ⟨a', mem_nonwitnessGroup (ha' ▸ ha)⟩)
+        fun ⟨a₁, ha₁⟩ ⟨a₂, ha₂⟩ h ↦ by rw [Subtype.mk_eq_mk, ← Classical.choose_spec ha₁.isUnit,
+          Subtype.mk.inj h, Classical.choose_spec ha₂.isUnit]
     _ ≤ φ n := card_nonwitnessGroup_of_not_prime ho hnp h9
-    _ ≤ n - 1 := le_pred_of_lt (totient_lt n hn.out)
+    _ ≤ n - 1 := le_pred_of_lt (totient_lt n hn.prop)
 
 end SPP
