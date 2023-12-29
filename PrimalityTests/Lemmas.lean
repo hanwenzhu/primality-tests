@@ -2,6 +2,7 @@ import Mathlib.Data.Nat.Cast.Basic
 import Mathlib.Data.Nat.PrimeFin
 import Mathlib.Data.Int.Parity
 import Mathlib.Data.ZMod.Units
+import Mathlib.NumberTheory.Zsqrtd.Basic
 import Mathlib.NumberTheory.Padics.PadicVal
 import Mathlib.Algebra.BigOperators.Associated
 import Mathlib.Algebra.IsPrimePow
@@ -9,6 +10,31 @@ import Mathlib.Algebra.IsPrimePow
 /-!
 Some lemmas for proofs. Some of these should be in mathlib?
 -/
+
+namespace Zsqrtd
+
+@[simp]
+theorem sub_re (z w : ℤ√d) : (z - w).re = z.re - w.re := by
+  rw [sub_eq_add_neg, add_re, neg_re, ← sub_eq_add_neg]
+
+@[simp]
+theorem sub_im (z w : ℤ√d) : (z - w).im = z.im - w.im := by
+  rw [sub_eq_add_neg, add_im, neg_im, ← sub_eq_add_neg]
+
+end Zsqrtd
+
+section AtLeastTwo
+
+instance {n : ℕ} [hn : n.AtLeastTwo] : NeZero n :=
+  ⟨hn.ne_zero⟩
+
+instance {n : ℕ} [hn : n.AtLeastTwo] : NeZero (n - 1) :=
+  ⟨(Nat.lt_pred_iff.mpr hn.prop).ne'⟩
+
+instance : DecidablePred Nat.AtLeastTwo :=
+  fun n ↦ if h : 2 ≤ n then isTrue ⟨h⟩ else isFalse fun h' ↦ h h'.prop
+
+end AtLeastTwo
 
 open Nat
 

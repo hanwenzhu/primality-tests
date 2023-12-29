@@ -2,6 +2,7 @@ import Mathlib.Data.ZMod.Basic
 
 /-!
 # Fast modular exponentiation
+As a temporary file waiting on #8885 or #9154
 -/
 
 namespace ZMod
@@ -15,9 +16,7 @@ where
     | 0 => y
     | m + 1 => go (m.succ / 2) (x * x) (x ^ (m.succ % 2) * y)
   termination_by _ n m x y => m
-  decreasing_by
-    simp_wf
-    exact m.div_lt_self' 0
+  decreasing_by exact m.div_lt_self' 0
 
 theorem pow.go_eq {n m : ℕ} {x y : ZMod n} : pow.go m x y = x ^ m * y := by
   unfold pow.go
@@ -27,9 +26,7 @@ theorem pow.go_eq {n m : ℕ} {x y : ZMod n} : pow.go m x y = x ^ m * y := by
     dsimp only
     rw [pow.go_eq, ← mul_assoc, ← pow_two, ← pow_mul, ← pow_add, Nat.div_add_mod]
 termination_by _ n m x y => m
-decreasing_by
-  simp_wf
-  exact n.div_lt_self' 0
+decreasing_by exact n.div_lt_self' 0
 
 theorem pow_eq {n : ℕ} {x : ZMod n} {m : ℕ} : x.pow m = x ^ m :=
   by rw [pow, pow.go_eq, mul_one]

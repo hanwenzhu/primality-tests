@@ -17,9 +17,6 @@ def FPP (n : ℕ) (a : ZMod n) : Prop :=
 
 namespace FPP
 
-scoped instance (n : ℕ) [hn : Fact (n ≥ 2)] : NeZero n :=
-  ⟨fun h ↦ two_pos.not_le (h ▸ hn.out)⟩
-
 instance decidable {n : ℕ} {a : ZMod n} : Decidable (FPP n a) := by
   rw [FPP, ← ZMod.pow_eq]
   apply decEq
@@ -38,13 +35,15 @@ theorem orderOf_dvd_sub_one {n : ℕ} {a : ZMod n} (h : FPP n a) :
     orderOf a ∣ n - 1 :=
   orderOf_dvd_of_pow_eq_one h
 
-theorem isUnit {n : ℕ} [hn : Fact (n ≥ 2)] {a : ZMod n} (h : FPP n a) :
+theorem isUnit {n : ℕ} [hn : n.AtLeastTwo] {a : ZMod n} (h : FPP n a) :
     IsUnit a :=
-  isUnit_ofPowEqOne h (lt_pred_iff.mpr hn.out).ne'
+  isUnit_ofPowEqOne h (lt_pred_iff.mpr hn.prop).ne'
 
 theorem fpp_unit_iff {n : ℕ} {a : (ZMod n)ˣ} :
     FPP n a ↔ a ^ (n - 1) = 1 := by
-  rw [Units.ext_iff, Units.val_pow_eq_pow_val, Units.val_one, FPP]
+  rw [Units.ext_iff]
+  push_cast
+  rfl
 
 section Carmichael
 
@@ -86,17 +85,17 @@ theorem squarefree_of_carmichael [hn : NeZero n] (hc : Carmichael n) :
   apply_fun ZMod.unitsMap (dvd_mul_right _ k) at ha
   rw [map_pow, unitsMap_chineseRemainderₓ_symm] at ha
   apply_fun ZMod.unitsMap ((pow_dvd_pow_iff_le_right pp.one_lt).mpr le_add_self) at ha
-  have : p ^ (s + 2) * k - 1 > 0 := Nat.sub_pos_of_lt (by
+  have pos : p ^ (s + 2) * k - 1 > 0 := Nat.sub_pos_of_lt (by
     rw [add_comm, pow_add, mul_assoc, Nat.one_lt_mul_iff]
     use pos_pow_of_pos 2 pp.pos, hk ▸ mpos
     left; exact Nat.one_lt_pow 2 p two_ne_zero pp.one_lt)
+  have : (1 + p : ZMod (p ^ 2)) ^ (p ^ (s + 2) * k - 1) = 1 + p * ↑(p ^ (s + 2) * k - 1) := by
+    simpa using @add_mul_prime_pow_pow p _ _ 1 1 _ one_pos pos
   rw [map_pow, map_one, map_one, ZMod.unitsMap_def, Units.ext_iff, Units.val_pow_eq_pow_val,
     Units.coe_map, ZMod.coe_unitOfCoprime, cast_add, cast_one, MonoidHom.coe_coe, map_add, map_one,
-    map_natCast, Units.val_one, ← pow_one (p : ZMod (p ^ 2)), ← one_mul (_ ^ 1),
-    add_mul_prime_pow_pow one_pos this, one_pow, one_pow, one_mul, one_mul, pow_one,
-    cast_sub (lt_of_lt_pred this), cast_mul, pow_add p s 2, cast_mul, ZMod.nat_cast_self, mul_zero,
-    zero_mul, zero_sub, cast_one, mul_neg_one, add_right_eq_self, neg_eq_zero,
-    ZMod.nat_cast_zmod_eq_zero_iff_dvd] at ha
+    map_natCast, Units.val_one, this, cast_sub (lt_of_lt_pred pos), cast_mul, pow_add p s 2,
+    cast_mul, ZMod.nat_cast_self, mul_zero, zero_mul, zero_sub, cast_one, mul_neg_one,
+    add_right_eq_self, neg_eq_zero, ZMod.nat_cast_zmod_eq_zero_iff_dvd] at ha
   suffices 2 ≤ 1 by norm_num at this
   apply (pow_dvd_pow_iff_le_right pp.one_lt).mp
   rwa [pow_one]
@@ -115,17 +114,17 @@ theorem sub_one_dvd_of_carmichael {p : ℕ} [NeZero n] [Fact p.Prime] (hc : Carm
 -- /-- Korselt, TODO. -/
 -- theorem carmichael_iff
 
-theorem length_factors_of_carmichael [hn : Fact (n ≥ 2)] (hc : Carmichael n) :
+theorem length_factors_of_carmichael [hn : n.AtLeastTwo] (hc : Carmichael n) :
     n.Prime ∨ n.factors.length ≥ 3 := by
   by_contra hf
   push_neg at hf
   obtain ⟨hnp, hf⟩ := hf
   interval_cases h : n.factors.length
   · rw [List.length_eq_zero, factors_eq_nil] at h
-    rcases h with rfl | rfl <;> norm_num at hn <;> exact hn.out
+    rcases h with rfl | rfl <;> absurd hn <;> decide
   · rw [List.length_eq_one] at h
     obtain ⟨p, hp⟩ := h
-    have := prod_factors (two_pos.trans_le hn.out).ne'
+    have := prod_factors (two_pos.trans_le hn.prop).ne'
     rw [hp, List.prod_singleton] at this
     apply hnp
     apply prime_of_mem_factors
@@ -135,7 +134,7 @@ theorem length_factors_of_carmichael [hn : Fact (n ≥ 2)] (hc : Carmichael n) :
     obtain ⟨p, q, hpq⟩ := h
     have pp : p.Prime := prime_of_mem_factors (by rw [hpq]; apply List.mem_cons_self)
     have pq : q.Prime := prime_of_mem_factors (by rw [hpq]; exact List.mem_of_mem_getLast? rfl)
-    replace hpq := hpq ▸ prod_factors (two_pos.trans_le hn.out).ne'
+    replace hpq := hpq ▸ prod_factors (two_pos.trans_le hn.prop).ne'
     dsimp only [List.prod, List.foldl] at hpq
     rw [one_mul] at hpq
     wlog hlt : p < q
@@ -155,7 +154,7 @@ theorem length_factors_of_carmichael [hn : Fact (n ≥ 2)] (hc : Carmichael n) :
     rw [succ_pred pp.ne_zero, q.sub_one, succ_pred pq.ne_zero] at this
     exact this.not_lt hlt
 
-theorem not_isPrimePow_of_carmichael [Fact (n ≥ 2)] (hc : Carmichael n) :
+theorem not_isPrimePow_of_carmichael [n.AtLeastTwo] (hc : Carmichael n) :
     n.Prime ∨ ¬IsPrimePow n :=
   (length_factors_of_carmichael hc).imp_right fun h ⟨p, k, pp, hk, h'⟩ ↦ by
     rw [← h', pp.nat_prime.factors_pow, List.length_replicate] at h

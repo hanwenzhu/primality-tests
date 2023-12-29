@@ -30,8 +30,8 @@ def FPP.Carmichael (n : ℕ) : Prop :=
 
 Strong probable primality
 ```lean
-/-- `n` is a *strong probable prime* to base `a`, if `a ^ d = 1` or `a ^ (2^s * d) = -1`, where
-`d` is odd, `s < s'`, and `s'` is such that `n - 1 = 2^s' * d`. -/
+/-- `n` is a *strong probable prime* to base `a`, if `a ^ d = 1` or `∃ s < s', a ^ (2 ^ s * d) = -1`
+where `d` is odd and `n - 1 = 2 ^ s' * d`. -/
 def SPP (n : ℕ) (a : ZMod n) : Prop :=
   a ^ oddPart (n - 1) = 1 ∨
   ∃ s : ℕ, s < val₂ (n - 1) ∧ a ^ (2 ^ s * oddPart (n - 1)) = -1
@@ -45,7 +45,7 @@ theorem SPP.of_prime {p : ℕ} [Fact p.Prime] {a : ZMod p} (ha : a ≠ 0) :
   SPP p a
 
 /-- The proportion of Miller–Rabin nonwitnesses of composite `n` is at most 1/4. -/
-theorem SPP.card_SPP_of_not_prime {n : ℕ} [Fact (n ≥ 2)] (ho : Odd n) (hnp : ¬n.Prime) :
+theorem SPP.card_SPP_of_not_prime {n : ℕ} [hn : n.AtLeastTwo] (ho : Odd n) (hnp : ¬n.Prime) :
   Fintype.card {a // SPP n a} * 4 ≤ n - 1
 ```
 

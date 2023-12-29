@@ -24,7 +24,7 @@ def millerRabin {gen : Type*} [RandomGen gen] (g : gen) (n r : ℕ) :
       | Nat.zero => (true, g)
       | Nat.succ r =>
           let (a, g') := randNat g 1 (n - 1)
-          if SPP.loopMulSelf v ((a : ZMod n).pow o) = none then
+          if SPP.loop v ((a : ZMod n).pow o) = none then
             millerRabin g' n r
           else
             (false, g')
