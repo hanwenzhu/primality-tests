@@ -633,7 +633,7 @@ theorem card_nonwitnessGroup_of_not_prime [n.AtLeastTwo]
       · rw [pow_one]; by_contra hp
         interval_cases p
         exact h9 rfl
-      apply (pow_le_pow_of_le_left pp.two_le 2).trans
+      apply (pow_le_pow_left zero_le_two pp.two_le 2).trans
       exact pow_le_pow_of_le_right pp.pos (le_pred_of_lt hm)
   · have ⟨K, hfK, hK₁, hK₂⟩ := nonwitnessGroup_lt_lt_of_not_isPrimePow ho hpp
     calc
