@@ -237,7 +237,7 @@ private noncomputable def rem (y : ZMod (p ^ (m + 1))) :
 
 private lemma cast_cast_pow {x : (ZMod (p ^ m))} :
     ((x : ZMod (p ^ (m + 1))) : ZMod (p ^ m)) = x :=
-  cast_cast_ZMod (pow_lt_pow_right pp.out.one_lt m.lt_succ_self).le
+  ZMod.cast_cast_zmod_of_le (pow_lt_pow_right pp.out.one_lt m.lt_succ_self).le _
 
 private lemma lift_unique (x : (ZMod (p ^ m))ˣ) (hx : x ^ (p - 1) = 1) (y : (ZMod (p ^ (m + 1)))) :
     (y : ZMod (p ^ m)) = x ∧ y ^ (p - 1) = 1 ↔
@@ -515,7 +515,7 @@ private theorem H_inf_H_lt_H_inf_H_inf_H {m₁ m₂ m₃ : ℕ} [NeZero n]
   intro hH
   let ⟨a₀, ha₀⟩ := s₀_spec (n := n)
   let a := (chineseRemainderₓ hc).symm (ZMod.unitsMap h₁n a₀, 1)
-  let ⟨b, hb⟩ := unitsMap_surjective h₁₂₃'n a
+  let ⟨b, hb⟩ := ZMod.unitsMap_surjective h₁₂₃'n a
   have : b ∈ H h₁₂n := by
     suffices b ∈ H h₁n ⊓ H h₂n ⊓ H h₃n by rw [← hH] at this; exact (mem_inf.mp this).1
     rw [inf_assoc, mem_inf]

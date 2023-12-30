@@ -11,18 +11,6 @@ import Mathlib.Algebra.IsPrimePow
 Some lemmas for proofs. Some of these should be in mathlib?
 -/
 
-namespace Zsqrtd
-
-@[simp]
-theorem sub_re (z w : ℤ√d) : (z - w).re = z.re - w.re := by
-  rw [sub_eq_add_neg, add_re, neg_re, ← sub_eq_add_neg]
-
-@[simp]
-theorem sub_im (z w : ℤ√d) : (z - w).im = z.im - w.im := by
-  rw [sub_eq_add_neg, add_im, neg_im, ← sub_eq_add_neg]
-
-end Zsqrtd
-
 section AtLeastTwo
 
 instance {n : ℕ} [hn : n.AtLeastTwo] : NeZero n :=
@@ -129,52 +117,13 @@ lemma mem_closure_neg_one {α : Type*} [Group α] [HasDistribNeg α] {a : α} :
 
 lemma unitsMap_neg_one {n m : ℕ} (hm : n ∣ m) :
     ZMod.unitsMap hm (-1) = (-1) := by
-  rw [ZMod.unitsMap_def, Units.ext_iff, Units.coe_map, MonoidHom.coe_coe, Units.coe_neg_one,
-    Units.coe_neg_one, map_neg, map_one]
+  rw [ZMod.unitsMap_def, Units.map_neg_one]
 
 lemma powMonoidHom_comm {α : Type*} {β : Type*} {n : ℕ} [CommMonoid α] [CommMonoid β] {f : α →* β} :
     (powMonoidHom n).comp f = f.comp (powMonoidHom n) := by
   ext a
   dsimp only [MonoidHom.coe_comp, Function.comp_apply, powMonoidHom_apply]
   rw [map_pow]
-
-lemma cast_cast_ZMod {m n : ℕ} {x : ZMod m} [NeZero m] (h : m ≤ n) :
-    ((x : ZMod n) : ZMod m) = x := by
-  have : NeZero n := ⟨((pos_iff_ne_zero.mpr NeZero.out).trans_le h).ne'⟩
-  rw [ZMod.cast_eq_val, ZMod.val_cast_eq_val_of_lt (x.val_lt.trans_le h), ZMod.nat_cast_zmod_val]
-
--- This extends to Units.map of surjective homomorphisms between PIDs?
--- https://math.stackexchange.com/questions/487011/showing-that-a-homomorphism-between-groups-of-units-is-surjective
-lemma unitsMap_surjective {m n : ℕ} [NeZero n] (h : m ∣ n) :
-    Function.Surjective (ZMod.unitsMap h) := by
-  have : NeZero m := ⟨fun hm ↦ NeZero.out (eq_zero_of_zero_dvd (hm ▸ h))⟩
-  suffices ∀ x : ℕ, x.Coprime m → ∃ k : ℕ, (x + k * m).Coprime n by
-    intro x
-    have ⟨k, hk⟩ := this x.val.val (ZMod.val_coe_unit_coprime x)
-    use ZMod.unitOfCoprime _ hk
-    rw [Units.ext_iff, ZMod.unitsMap_def, Units.coe_map, MonoidHom.coe_coe, ZMod.coe_unitOfCoprime,
-      cast_add, ← ZMod.cast_eq_val, map_add, map_natCast, cast_mul, ZMod.castHom_apply,
-      cast_cast_ZMod (le_of_dvd (pos_iff_ne_zero.mpr NeZero.out) h), ZMod.nat_cast_self, mul_zero,
-      add_zero]
-  intro x hx
-  let ps := n.primeFactors.filter (fun p ↦ ¬p ∣ x)
-  use ps.prod id
-  apply coprime_of_dvd
-  intro p pp hp hpn
-  by_cases hpx : p ∣ x
-  · have h := dvd_sub' hp hpx
-    rw [add_comm, Nat.add_sub_cancel] at h
-    rcases pp.dvd_mul.mp h with h | h
-    · rw [pp.prime.dvd_finset_prod_iff] at h
-      have ⟨q, hq, hq'⟩ := h
-      rw [Finset.mem_filter, mem_primeFactors] at hq
-      obtain rfl := (prime_dvd_prime_iff_eq pp hq.1.1).mp hq'
-      exact hq.2 hpx
-    · exact Prime.not_coprime_iff_dvd.mpr ⟨p, pp, hpx, h⟩ hx
-  · have pps : p ∈ ps := Finset.mem_filter.mpr ⟨mem_primeFactors.mpr ⟨pp, hpn, NeZero.out⟩, hpx⟩
-    have h := dvd_sub' hp ((Finset.dvd_prod_of_mem id pps).mul_right m)
-    rw [Nat.add_sub_cancel] at h
-    contradiction
 
 lemma exists_pow_prime_dvd_and_coprime (hn : n ≥ 2) :
     ∃ p s k : ℕ, p.Prime ∧ s > 0 ∧ n = p ^ s * k ∧ (p ^ s).Coprime k := by
