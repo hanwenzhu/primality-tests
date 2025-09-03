@@ -1,4 +1,4 @@
-import PrimalityTests.StrongProbable
+import MillerRabin.StrongProbable
 
 /-!
 Miscellaneous leaf proofs (not used).
@@ -6,9 +6,12 @@ Miscellaneous leaf proofs (not used).
 
 open Nat Subgroup
 
+instance {α} {a : α} [i0 : Zero α] [inst : Decidable (a ≠ 0)] : Decidable (NeZero a) :=
+  propext (@neZero_iff α i0 a) ▸ inst
+
 namespace SPP
 
-theorem nonwitnessGroup_of_not_isSquare_neg_one {n : ℕ} [n.AtLeastTwo] (ho : Odd n)
+theorem nonwitnessGroup_of_not_isSquare_neg_one {n : ℕ} (hn : 2 ≤ n) (ho : Odd n)
     (hn : ¬IsSquare (-1 : ZMod n)) :
     nonwitnessGroup n = comap (powMonoidHom (oddPart (n - 1))) (closure {-1}) := by
   apply le_antisymm
