@@ -1,5 +1,7 @@
 # Miller–Rabin Primality Test in Lean
 
+This repository formalizes the Miller–Rabin primality test in Lean. It contains both a runnable algorithm `millerRabin` and a proof that it returns `true` on a composite number with probability at most 1/4.
+
 ## Main definitions
 
 Fermat probable primality
