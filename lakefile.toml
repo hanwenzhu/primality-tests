@@ -1,0 +1,15 @@
+name = "MillerRabin"
+defaultTargets = ["MillerRabin"]
+
+[leanOptions]
+pp.unicode.fun = true
+autoImplicit = false
+relaxedAutoImplicit = false
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4.git"
+rev = "v4.22.0"
+
+[[lean_lib]]
+name = "MillerRabin"
