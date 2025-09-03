@@ -24,9 +24,7 @@ def SPP (n : ℕ) (a : ZMod n) : Prop :=
   a ^ oddPart (n - 1) = 1 ∨
   ∃ s < val₂ (n - 1), a ^ (2 ^ s * oddPart (n - 1)) = -1
 
-namespace SPP
-
-section Decidable
+section Algorithm
 
 /-! ### Decidability of strong probable primality -/
 
@@ -96,6 +94,12 @@ lemma millerRabin_eq_true_iff {n : ℕ} (a : ZMod n) :
     millerRabin a = true ↔ SPP n a := by
   simp [millerRabin, millerRabinAux_eq_true_iff, SPP, pow_mul, pow_right_comm]
 
+end Algorithm
+
+namespace SPP
+
+section Decidable
+
 /-- The algorithm `millerRabin` that decides `SPP` in $O(\log^3 n)$ as an instance. -/
 instance decidable {n : ℕ} {a : ZMod n} :
     Decidable (SPP n a) :=
@@ -107,6 +111,8 @@ example : @SPP 944955065201210920149993400889 2 := by native_decide
 example : ¬@SPP 844955065201210920149993400889 2 := by native_decide
 
 end Decidable
+
+section FPP
 
 /-- `n` is SPP to base `a` if `n` is FPP to base `a` and the square roots of 1 are ±1. -/
 theorem of_fpp_of_mul_self_eq_one {n : ℕ} {a : ZMod n}
@@ -130,8 +136,6 @@ theorem of_fpp_of_mul_self_eq_one {n : ℕ} {a : ZMod n}
 theorem of_prime {p : ℕ} [Fact p.Prime] {a : ZMod p} (ha : a ≠ 0) :
     SPP p a :=
   of_fpp_of_mul_self_eq_one (FPP.of_prime ha) (fun _ ↦ mul_self_eq_one_iff.mp)
-
-section FPP
 
 /-- Strong probable primes are Fermat probable primes. -/
 theorem fpp {n : ℕ} {a : ZMod n} (h : SPP n a) :
