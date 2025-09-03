@@ -1,4 +1,4 @@
-# Miller–Rabin Primality Test
+# Miller–Rabin Primality Test in Lean
 
 ## Main definitions
 
