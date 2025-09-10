@@ -32,19 +32,21 @@ def SPP (n : ℕ) (a : ZMod n) : Prop :=
   ∃ s < val₂ (n - 1), a ^ (2 ^ s * oddPart (n - 1)) = -1
 
 /-- The single-pass *Miller–Rabin algorithm* that decides `SPP` in $O(\log^3 n)$. -/
-def millerRabin {n : ℕ} (a : ZMod n) : Bool
+def SPP.millerRabin (n : ℕ) (a : ZMod n) : Bool
 
 /-- `millerRabin` decides `SPP`. -/
-lemma millerRabin_eq_true_iff {n : ℕ} (a : ZMod n) :
-    millerRabin a = true ↔ SPP n a
+lemma SPP.millerRabin_eq_true_iff {n : ℕ} (a : ZMod n) :
+    SPP.millerRabin n a = true ↔ SPP n a
 
 /-- A prime is a strong probable prime to any nonzero base. -/
 theorem SPP.of_prime {p : ℕ} [Fact p.Prime] {a : ZMod p} (ha : a ≠ 0) :
   SPP p a
 
-/-- The proportion of Miller–Rabin nonwitnesses of composite `n` is at most 1/4. -/
-theorem SPP.card_SPP_of_not_prime {n : ℕ} (hn : 2 ≤ n) (ho : Odd n) (hnp : ¬n.Prime) :
-  4 * Nat.card {a // SPP n a} ≤ n - 1
+/--
+The proportion of Miller–Rabin nonwitnesses of odd composite `n` in `ZMod n \ {0}` is at most 1/4.
+-/
+theorem SPP.card_le_of_not_prime {n : ℕ} [hn : Fact (1 < n)] (ho : Odd n) (hnp : ¬n.Prime) :
+    4 * #{a | SPP n a} ≤ n - 1
 ```
 
 ## Next step

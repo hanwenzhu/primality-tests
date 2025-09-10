@@ -1,6 +1,7 @@
 import Mathlib.Data.Nat.Squarefree
 import Mathlib.FieldTheory.Finite.Basic
 import MillerRabin.Lemmas
+import MillerRabin.Mathlib.Data.ZMod.Units
 
 /-!
 # Fermat Probable Primes
@@ -37,9 +38,9 @@ theorem orderOf_dvd_sub_one {n : ℕ} {a : ZMod n} (h : FPP n a) :
     orderOf a ∣ n - 1 :=
   orderOf_dvd_of_pow_eq_one h
 
-theorem isUnit {n : ℕ} (hn : 2 ≤ n) {a : ZMod n} (h : FPP n a) :
+theorem isUnit {n : ℕ} [hn : Fact (1 < n)] {a : ZMod n} (h : FPP n a) :
     IsUnit a :=
-  IsUnit.of_pow_eq_one h (lt_pred_iff.mpr hn).ne'
+  IsUnit.of_pow_eq_one h (by have := hn.out; omega)
 
 theorem fpp_unit_iff {n : ℕ} {a : (ZMod n)ˣ} :
     FPP n a ↔ a ^ (n - 1) = 1 := by
@@ -60,7 +61,7 @@ namespace Carmichael
 variable {n : ℕ}
 
 /-- This is (i) of Thm. 5 of [conrad2016carmichael]. -/
-theorem odd (hn : n > 2) (hc : Carmichael n) : Odd n := by
+theorem odd (hn : 2 < n) (hc : Carmichael n) : Odd n := by
   rw [← not_even_iff_odd]
   rintro ⟨k, rfl⟩
   have hk : Odd (k + k - 1) :=
@@ -96,7 +97,7 @@ theorem squarefree [hn : NeZero n] (hc : Carmichael n) :
   apply_fun ZMod.unitsMap (dvd_mul_right _ k) at ha
   rw [map_pow, ZMod.unitsMap_chineseRemainderₓ_symm] at ha
   apply_fun ZMod.unitsMap ((pow_dvd_pow_iff_le_right pp.one_lt).mpr le_add_self) at ha
-  have pos : p ^ (s + 2) * k - 1 > 0 := Nat.sub_pos_of_lt <| by
+  have pos : 0 < p ^ (s + 2) * k - 1 := Nat.sub_pos_of_lt <| by
     rw [add_comm, pow_add, mul_assoc, Nat.one_lt_mul_iff]
     use sq_pos_of_pos pp.pos, hk ▸ mpos
     left
@@ -132,12 +133,12 @@ is not used hence not proved.
 -/
 
 /-- This is (ii) of Thm. 5 of [conrad2016carmichael]. -/
-theorem card_primeFactors (hn : 2 ≤ n) (hc : Carmichael n) (hnp : ¬n.Prime) :
+theorem card_primeFactors [hn : Fact (1 < n)] (hc : Carmichael n) (hnp : ¬n.Prime) :
     3 ≤ n.primeFactors.card := by
-  have hn0 : NeZero n := ⟨by omega⟩
   by_contra hf
   interval_cases h : n.primeFactors.card
-  · simp at h
+  · have := hn.out
+    simp at h
     omega
   · apply hnp
     obtain ⟨p, hp⟩ := Finset.card_eq_one.mp h
@@ -149,7 +150,7 @@ theorem card_primeFactors (hn : 2 ≤ n) (hc : Carmichael n) (hnp : ¬n.Prime) :
     replace hpq := hpq ▸ prod_primeFactors_of_squarefree hc.squarefree |>.symm
     rw [Finset.prod_insert (Finset.notMem_singleton.mpr hne), Finset.prod_singleton] at hpq
     wlog hlt : p < q
-    · apply this hn hc hnp hn0 h (by decide) q p hne.symm pq pp (by rwa [mul_comm] at hpq)
+    · apply this hc hnp h (by decide) q p hne.symm pq pp (by rwa [mul_comm] at hpq)
       exact lt_of_le_of_ne (not_lt.mp hlt) fun heq ↦
         squarefree_iff_prime_squarefree.mp hc.squarefree p pp <|
           by nth_rw 2 [← heq]; rw [hpq]
@@ -166,10 +167,10 @@ theorem card_primeFactors (hn : 2 ≤ n) (hc : Carmichael n) (hnp : ¬n.Prime) :
     rw [succ_pred pp.ne_zero, q.sub_one, succ_pred pq.ne_zero] at this
     exact this.not_gt hlt
 
-theorem not_isPrimePow (hn : 2 ≤ n) (hc : Carmichael n) (hnp : ¬n.Prime) :
+theorem not_isPrimePow [Fact (1 < n)] (hc : Carmichael n) (hnp : ¬n.Prime) :
     ¬IsPrimePow n := by
   rintro ⟨p, k, pp, hk, rfl⟩
-  have h := hc.card_primeFactors hn hnp
+  have h := hc.card_primeFactors hnp
   simp [primeFactors_prime_pow hk.ne' pp.nat_prime] at h
 
 end Carmichael

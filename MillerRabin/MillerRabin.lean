@@ -1,77 +1,73 @@
--- import Cli
--- import MillerRabin.StrongProbable
+import MillerRabin.StrongProbable
 
--- /-!
--- # Miller–Rabin Primality Test
--- -/
 
--- /-- The *Miller–Rabin* primality test on input `n`, run `r` times. -/
--- def millerRabin {gen : Type*} [RandomGen gen] (g : gen) (n r : ℕ) :
---     Bool × gen :=
---   if n ≤ 1 then
---     (false, g)
---   else if n = 2 then
---     (true, g)
---   else if 2 ∣ n then
---     (false, g)
---   else
---     go r
---     where
---       v := val₂ (n - 1)
---       o := oddPart (n - 1)
---       go : ℕ → Bool × gen
---       | Nat.zero => (true, g)
---       | Nat.succ r =>
---           let (a, g') := randNat g 1 (n - 1)
---           if SPP.loop v ((a : ZMod n).pow o) = none then
---             millerRabin g' n r
---           else
---             (false, g')
+section randNat
 
--- /-- Runs Miller–Rabin on `n`, `r` times.
--- Uses `StdGen` (so obviously don't use for cryptographic purposes). -/
--- def runMillerRabin (n r : ℕ) (seed : Option ℕ := none) : IO Bool := do
---   if let some seed := seed then
---     IO.setRandSeed seed
---   let g ← IO.stdGenRef.get
---   let (res, g) := millerRabin g n r
---   IO.stdGenRef.set g
---   pure res
+/-! `randNat` is well-behaved, returning a number in the interval [lo, hi]. -/
 
--- -- 9 is the strongest pseudoprime
--- #eval runMillerRabin 9 1  -- this is true 1/4 of the times
--- #eval runMillerRabin 9 10 -- this is false almost definitely
+lemma lo_le_randNat {gen : Type _} [RandomGen gen] (g : gen) (lo hi : Nat) (h : lo ≤ hi) :
+    lo ≤ (randNat g lo hi).1 := by
+  simp [randNat, h.not_gt]
 
--- section Cli
+lemma randNat_le_hi {gen : Type _} [RandomGen gen] (g : gen) (lo hi : Nat) (h : lo ≤ hi) :
+    (randNat g lo hi).1 ≤ hi := by
+  simp [randNat, h.not_gt]
+  have (n : ℕ) : n % (hi - lo + 1) ≤ hi - lo := Nat.lt_succ.mp (Nat.mod_lt n (by omega))
+  grw [this]
+  omega
 
--- open Cli
+lemma hi_le_randNat_of_ge {gen : Type _} [RandomGen gen] (g : gen) (lo hi : Nat) (h : lo ≥ hi) :
+    hi ≤ (randNat g lo hi).1 := by
+  rcases eq_or_lt_of_le h with rfl | h
+  · exact lo_le_randNat g hi hi h
+  simp [randNat, h]
 
--- def runMillerRabinCmd (p : Parsed) : IO UInt32 := do
---   let n := p.positionalArg! "n" |>.as! Nat
---   let r := p.positionalArg! "r" |>.as! Nat
---   let seed := p.flag? "seed" |>.map (·.as! Nat)
---   let res ← runMillerRabin n r seed
---   IO.println <| if res then "prime" else "composite"
---   return 0
+lemma randNat_le_lo_of_ge {gen : Type _} [RandomGen gen] (g : gen) (lo hi : Nat) (h : lo ≥ hi) :
+    (randNat g lo hi).1 ≤ lo := by
+  rcases eq_or_lt_of_le h with rfl | h
+  · exact randNat_le_hi g hi hi h
+  simp [randNat, h]
+  have (n : ℕ) : n % (lo - hi + 1) ≤ lo - hi := Nat.lt_succ.mp (Nat.mod_lt n (by omega))
+  grw [this]
+  omega
 
--- def millerRabinCmd := `[Cli|
---   "miller-rabin" VIA runMillerRabinCmd;
---   "Tests primality of a number using the Miller–Rabin primality test."
+end randNat
 
---   FLAGS:
---     seed : Nat; "Seed for the random number generator."
 
---   ARGS:
---     n : Nat; "The candidate prime."
---     r : Nat; "Number of repeats."
--- ]
+class RandomNatGen (g : Type _) where
+  next : g → (lo hi : Nat) → Nat × g
+  next_lawful : ∀ g lo hi, lo ≤ hi → lo ≤ (next g lo hi).1 ∧ (next g lo hi).1 ≤ hi
 
--- end Cli
+/-- Using `randNat`, a `RandomGen` instance gives a `RandomNatGen` instance. -/
+instance (g : Type _) [RandomGen g] : RandomNatGen g := {
+  next g lo hi := randNat g lo hi
+  next_lawful g lo hi h := ⟨lo_le_randNat g lo hi h, randNat_le_hi g lo hi h⟩
+}
 
--- def main (args : List String) : IO UInt32 := do
---   millerRabinCmd.validate args
+namespace MillerRabin
 
--- /-!
--- Then one should be able to prove millerRabin is correct with prob. 1 - 4⁻ʳ,
--- assuming g is uniform.
--- -/
+def millerRabinCoreLoop {gen : Type _} [RandomNatGen gen] (g : gen) (n rep : ℕ) : Bool := Id.run do
+  let s := val₂ (n - 1)
+  let k := (n - 1) / 2 ^ s
+  let mut g := g
+  for _ in List.range rep do
+    let (a, g') := RandomNatGen.next g 1 (n - 1)
+    let b := a ^ k
+    if b == 1 || SPP.millerRabinAux n s b then return true
+    g := g'
+  return false
+
+def millerRabin {gen : Type _} [RandomNatGen gen] (g : gen) (n rep : ℕ) : Bool := Id.run do
+  if n ≤ 1 then return false
+  else if n = 2 then return true
+  else if n % 2 = 0 then return false
+  else if rep = 0 then return false
+  else return millerRabinCoreLoop g n rep
+
+def millerRabinIO (n rep : ℕ) : IO Bool := do
+  let gen ← IO.stdGenRef.get
+  let (gen, gen') := RandomGen.split gen
+  IO.stdGenRef.set gen
+  return millerRabin gen' n rep
+
+end MillerRabin

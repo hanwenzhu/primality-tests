@@ -1,4 +1,6 @@
 import Mathlib
+import MillerRabin.Mathlib.Data.Fintype.Units
+import MillerRabin.Mathlib.Algebra.Group.Subgroup.Lattice
 
 import MillerRabin.FermatProbable
 import MillerRabin.Lemmas
@@ -24,6 +26,8 @@ def SPP (n : ℕ) (a : ZMod n) : Prop :=
   a ^ oddPart (n - 1) = 1 ∨
   ∃ s < val₂ (n - 1), a ^ (2 ^ s * oddPart (n - 1)) = -1
 
+namespace SPP
+
 section Algorithm
 
 /-! ### Decidability of strong probable primality -/
@@ -47,7 +51,7 @@ do
 -/
 
 /-- The inner loop of the single-pass Miller–Rabin algorithm. -/
-def millerRabinAux {n : ℕ} (s : ℕ) (b : ZMod n) : Bool := Id.run do
+def millerRabinAux (n s : ℕ) (b : ZMod n) : Bool := Id.run do
   let mut b := b
   for _ in List.range s do
     if b == -1 then return true
@@ -64,7 +68,7 @@ lemma _root_.List.range_succ_eq_cons_map_succ (s : ℕ) :
     simp [ih]
 
 lemma millerRabinAux_eq_true_iff {n : ℕ} (s : ℕ) (b : ZMod n) :
-    millerRabinAux s b = true ↔ ∃ s' : ℕ, s' < s ∧ b ^ 2 ^ s' = -1 := by
+    millerRabinAux n s b = true ↔ ∃ s' : ℕ, s' < s ∧ b ^ 2 ^ s' = -1 := by
   unfold millerRabinAux
   induction s generalizing b with
   | zero => simp
@@ -83,20 +87,22 @@ lemma millerRabinAux_eq_true_iff {n : ℕ} (s : ℕ) (b : ZMod n) :
         use s' - 1, by omega, by simpa [pow_succ', pow_mul, pow_two] using hs''
 
 /-- The single-pass *Miller–Rabin algorithm* that decides `SPP` in $O(\log^3 n)$. -/
-def millerRabin {n : ℕ} (a : ZMod n) : Bool := Id.run do
+def millerRabin (n : ℕ) (a : ZMod n) : Bool := Id.run do
   let s := val₂ (n - 1)
   let k := (n - 1) / 2 ^ s
   let b := a ^ k
-  return b == 1 || millerRabinAux s b
+  return b == 1 || millerRabinAux n s b
 
 /-- `millerRabin` decides `SPP`. -/
 lemma millerRabin_eq_true_iff {n : ℕ} (a : ZMod n) :
-    millerRabin a = true ↔ SPP n a := by
+    millerRabin n a = true ↔ SPP n a := by
   simp [millerRabin, millerRabinAux_eq_true_iff, SPP, pow_mul, pow_right_comm]
 
 end Algorithm
 
-namespace SPP
+@[simp]
+theorem not_spp_zero (n : ℕ) [Fact (1 < n)] : ¬SPP n 0 := by
+  simp [SPP, pow_mul, zero_pow (oddPart_pos (n := n - 1)).ne']
 
 section Decidable
 
@@ -106,9 +112,9 @@ instance decidable {n : ℕ} {a : ZMod n} :
   propext (millerRabin_eq_true_iff a) ▸ decEq _ _
 
 -- Test on large prime
-example : @SPP 944955065201210920149993400889 2 := by native_decide
+example : SPP 944955065201210920149993400889 2 := by native_decide
 -- Test on large composite number
-example : ¬@SPP 844955065201210920149993400889 2 := by native_decide
+example : ¬SPP 844955065201210920149993400889 2 := by native_decide
 
 end Decidable
 
@@ -129,8 +135,8 @@ theorem of_fpp_of_mul_self_eq_one {n : ℕ} {a : ZMod n}
     rcases h _ hf with h | h
     · rcases ih h with _ | ⟨s', hs', hs''⟩
       · left; assumption
-      · right; exact ⟨s', hs'.trans (lt_succ_self s), hs''⟩
-    · right; exact ⟨s, lt_succ_self s, h⟩
+      · right; exact ⟨s', by omega, hs''⟩
+    · right; exact ⟨s, by omega, h⟩
 
 /-- A prime is a strong probable prime to any nonzero base. -/
 theorem of_prime {p : ℕ} [Fact p.Prime] {a : ZMod p} (ha : a ≠ 0) :
@@ -150,9 +156,9 @@ theorem orderOf_dvd_sub_one {n : ℕ} {a : ZMod n} (h : SPP n a) :
     orderOf a ∣ n - 1 :=
   h.fpp.orderOf_dvd_sub_one
 
-theorem isUnit {n : ℕ} (hn : 2 ≤ n) {a : ZMod n} (h : SPP n a) :
+theorem isUnit {n : ℕ} [Fact (1 < n)] {a : ZMod n} (h : SPP n a) :
     IsUnit a :=
-  h.fpp.isUnit hn
+  h.fpp.isUnit
 
 end FPP
 
@@ -181,39 +187,37 @@ lemma spp_unit_iff {a : (ZMod n)ˣ} :
 
 section OfPrimePow
 
-theorem of_prime_pow_of_pow_sub {p m : ℕ} {a : ZMod (p ^ m)} [pp : Fact p.Prime]
-    (hm : m > 0) (hp : p > 2) (ha : a ^ (p ^ m - 1) = 1) :
+theorem of_prime_pow_of_fpp {p m : ℕ} {a : ZMod (p ^ m)} [pp : Fact p.Prime]
+    (hm : 0 < m) (hp : 2 < p) (ha : FPP (p ^ m) a) :
     SPP (p ^ m) a := by
-  have : Fact (p ^ m > 1) := ⟨Nat.one_lt_pow hm.ne' pp.out.one_lt⟩
+  have h1 : 1 < p ^ m := Nat.one_lt_pow hm.ne' pp.out.one_lt
+  have : Fact (1 < p ^ m) := ⟨h1⟩
   apply of_fpp_of_mul_self_eq_one ha
-  intro x
-  rcases lt_or_ge x.val (1 : ZMod (p ^ m)).val with hx₁ | hx₁
-  · rw [ZMod.val_one, lt_one_iff, ZMod.val_eq_zero] at hx₁
-    rw [hx₁, zero_mul]
-    exact fun h ↦ .inl h
-  rcases le_or_gt (p ^ m) (x.val + (1 : ZMod (p ^ m)).val) with hx₂ | hx₂
-  · have := le_antisymm hx₂ (by rw [ZMod.val_one]; exact (ZMod.val_lt _))
-    rw [ZMod.val_add_val_of_le this.le, right_eq_add, ZMod.val_eq_zero,
-      add_eq_zero_iff_eq_neg] at this
-    exact fun _ ↦ .inr this
-  suffices x * x - 1 = 0 → x - 1 = 0 ∨ x + 1 = 0 by
-    rwa [sub_eq_zero, sub_eq_zero, add_eq_zero_iff_eq_neg] at this
-  rw [← ZMod.natCast_zmod_val (x * x - 1), ← ZMod.natCast_zmod_val (x - 1),
-    ← ZMod.natCast_zmod_val (x + 1), ZMod.natCast_eq_zero_iff,
-    ZMod.natCast_eq_zero_iff, ZMod.natCast_eq_zero_iff, mul_self_sub_one,
-    ZMod.val_mul, dvd_mod_iff (dvd_refl _), ZMod.val_add_of_lt hx₂, ZMod.val_sub hx₁,
-    ZMod.val_one]
-  generalize x.val = y
-  intro h
-  by_cases h' : p ∣ y - 1
-  · replace h' : ¬p ∣ y + 1 := by
-      intro h''
-      have := p.dvd_sub h'' h'
-      rw [add_comm, Nat.add_sub_assoc (y.sub_le 1), Nat.sub_sub_eq_min] at this
-      apply hp.not_ge
-      exact (le_of_dvd (by omega) this).trans (by omega)
-    left; exact Prime.pow_dvd_of_dvd_mul_left pp.out.prime m h' h
-  · right; exact Prime.pow_dvd_of_dvd_mul_right pp.out.prime m h' h
+  intro x h
+  replace h : (x + 1) * (x - 1) = 0 := by linear_combination h
+  -- ℤ-ify everything
+  rw [← ZMod.natCast_zmod_val x,
+    show (x.val : ZMod (p ^ m)) = ((x.val : ℤ) : ZMod (p ^ m)) by norm_cast] at *
+  generalize (x.val : ℤ) = y at *
+  suffices (p ^ m : ℤ) ∣ y + 1 ∨ (p ^ m : ℤ) ∣ y - 1 by
+    obtain (h | h) := this
+    · right
+      have : (y : ZMod (p ^ m)) + 1 = 0 :=
+        mod_cast (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mpr (mod_cast h)
+      linear_combination this
+    · left
+      exact_mod_cast ((ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mpr (mod_cast h)).symm
+  replace h : (p ^ m : ℤ) ∣ (y + 1) * (y - 1) :=
+    mod_cast (ZMod.intCast_zmod_eq_zero_iff_dvd _ _).mp (mod_cast h)
+  replace pp : Prime (p : ℤ) := prime_iff_prime_int.mp pp.out
+  -- p cannot divide both y + 1 and y - 1, and the result follows
+  obtain (hnd | hnd) : ¬(p : ℤ) ∣ y + 1 ∨ ¬(p : ℤ) ∣ y - 1 := by
+    by_contra! h
+    suffices (p : ℤ) ∣ 2 by norm_cast at this; linarith [le_of_dvd (by positivity) this]
+    convert (p : ℤ).dvd_sub h.1 h.2
+    ring
+  · right; exact pp.pow_dvd_of_dvd_mul_left m hnd h
+  · left; exact pp.pow_dvd_of_dvd_mul_right m hnd h
 
 /-!
 We show that the group `nonwitnessGroup (p ^ m)` is just `(powMonoidHom (p - 1)).ker`,
@@ -243,14 +247,15 @@ theorem nonwitnessGroup_of_prime_pow (hm : 0 < m) (hp : 2 < p) :
   · intro a ha
     rw [MonoidHom.mem_ker, powMonoidHom_apply, Units.ext_iff] at ha
     push_cast at ha
-    exact mem_nonwitnessGroup (of_prime_pow_of_pow_sub hm hp (by rw [hk, pow_mul, ha, one_pow]))
+    exact mem_nonwitnessGroup (of_prime_pow_of_fpp hm hp (by rw [FPP, hk, pow_mul, ha, one_pow]))
 
 /-
 Below is really just an application of Hensel's lemma, but we don't have a form of Hensel in
-mathlib that can be easily converted to this. Instead we use an elementary proof as in [Conrad].
+mathlib that can be easily converted to this. Instead we use an elementary proof as in
+[conrad2011miller].
 -/
 
-private noncomputable def rem (y : ZMod (p ^ (m + 1))) :
+private noncomputable abbrev rem (y : ZMod (p ^ (m + 1))) :
     { r : ZMod (p ^ (m + 1)) //
       y = ((y.cast : ZMod (p ^ m)).cast : ZMod (p ^ (m + 1))) + (p : ZMod (p ^ (m + 1))) ^ m * r } := by
   have := ZMod.natCast_val (R := ZMod (p ^ m)) y
@@ -303,7 +308,7 @@ private lemma lift_unique (hm : 0 < m) (x : (ZMod (p ^ m))ˣ) (hx : x ^ (p - 1) 
     nth_rw 1 [← cancel]
     ring
   · intro h
-    have h₁ := congrArg (ZMod.castHom (pow_dvd_pow p m.lt_succ_self.le) (ZMod (p ^ m))) h
+    have h₁ := congr((ZMod.castHom (pow_dvd_pow p m.lt_succ_self.le) (ZMod (p ^ m))) $h)
     rw [ZMod.castHom_apply, map_sub, map_mul, map_mul, map_sub, ZMod.castHom_apply, map_pow,
       ZMod.castHom_apply, map_one, ZMod.castHom_apply, cast_cast_pow, hx, sub_self, zero_mul,
       zero_mul, sub_zero] at h₁
@@ -335,23 +340,20 @@ private lemma card_ker_powMonoidHom_sub_one_of_prime_pow (hm : 0 < m) :
       use ZMod.unitsMap (pow_dvd_pow p m.lt_succ_self.le) x
       rw [← MonoidHom.map_pow, hx, MonoidHom.map_one]
     · intro ⟨x, hx⟩
-      letI y := (x.val.cast : ZMod (p ^ (m + 1))) - p ^ m * rem ((x.val.cast : ZMod (p ^ (m + 1))) ^ (p - 1)) *
+      let y := (x.val.cast : ZMod (p ^ (m + 1))) - p ^ m * rem ((x.val.cast : ZMod (p ^ (m + 1))) ^ (p - 1)) *
         ((x.val.cast : ZMod (p ^ (m + 1))) ^ (p - 2))⁻¹ * (p - 1 : ZMod (p ^ (m + 1)))⁻¹
       use Units.ofPowEqOne y (p - 1) ((lift_unique hm x hx y).mpr rfl).2 (sub_ne_zero_of_lt pp.out.one_lt)
       exact Units.pow_ofPowEqOne _ _
     · intro ⟨y, hy⟩
       rw [Subtype.mk.injEq, Units.ext_iff]
-      set x := ZMod.unitsMap (pow_dvd_pow p m.lt_succ_self.le) y
+      let x := ZMod.unitsMap (pow_dvd_pow p m.lt_succ_self.le) y
       refine ((lift_unique hm x ?_ _).mp ⟨rfl, ?_⟩).symm
-      · apply_fun ZMod.unitsMap (pow_dvd_pow p m.lt_succ_self.le) at hy
-        rwa [map_pow, map_one] at hy
-      · rwa [Units.ext_iff, Units.val_pow_eq_pow_val, Units.val_one] at hy
+      · simpa using congr(ZMod.unitsMap (pow_dvd_pow p m.lt_succ_self.le) $hy)
+      · simpa [Units.ext_iff] using hy
     · intro ⟨x, hx⟩
-      rw [Subtype.mk.injEq, Units.ext_iff, ZMod.unitsMap_def, Units.coe_map, Units.val_ofPowEqOne,
-        MonoidHom.coe_coe, ZMod.castHom_apply]
-      exact ((lift_unique hm x hx _).mpr rfl).1
+      simpa [Units.ext_iff, ZMod.unitsMap_def] using ((lift_unique hm x hx _).mpr rfl).1
 
-theorem card_nonwitnessGroup_of_prime_pow (hm : 0 < m) (hp : p > 2) :
+theorem card_nonwitnessGroup_of_prime_pow (hm : 0 < m) (hp : 2 < p) :
     Nat.card (nonwitnessGroup (p ^ m)) = p - 1 := by
   rw [← card_ker_powMonoidHom_sub_one_of_prime_pow hm, nonwitnessGroup_of_prime_pow hm hp]
 
@@ -363,29 +365,26 @@ section DefS₀G
 def s₀ (n : ℕ) : ℕ :=
   Nat.findGreatest (fun s ↦ ∃ a : (ZMod n)ˣ, a ^ (2 ^ s * oddPart (n - 1)) = -1) (val₂ (n - 1) - 1)
 
-lemma s₀_lt_val₂ (hn : 2 ≤ n) (ho : Odd n) : s₀ n < val₂ (n - 1) := by
-  have hn1 : NeZero (n - 1) := ⟨by omega⟩
+lemma s₀_lt_val₂ [Fact (1 < n)] (ho : Odd n) : s₀ n < val₂ (n - 1) := by
   exact lt_of_le_pred (val₂_of_even (Nat.Odd.sub_odd ho ⟨0, rfl⟩)) (findGreatest_le (val₂ (n - 1) - 1))
 
-lemma s₀_spec (hn : 2 ≤ n) : ∃ a : (ZMod n)ˣ, a ^ (2 ^ s₀ n * oddPart (n - 1)) = -1 :=
+lemma s₀_spec (n) [Fact (1 < n)] : ∃ a : (ZMod n)ˣ, a ^ (2 ^ s₀ n * oddPart (n - 1)) = -1 :=
   findGreatest_spec (P := fun s ↦ ∃ a, a ^ (2 ^ s * oddPart (n - 1)) = -1) (Nat.zero_le _) <| by
     use -1
-    have : NeZero (n - 1) := ⟨by omega⟩
-    rw [Nat.pow_zero, one_mul, odd_oddPart.neg_one_pow]
+    simp [odd_oddPart.neg_one_pow]
 
-lemma two_pow_s₀_lt (hn : 2 ≤ n) (ho : Odd n) : 2 ^ s₀ n * oddPart (n - 1) < n - 1 := by
-  have : NeZero (n - 1) := ⟨by omega⟩
+lemma two_pow_s₀_lt [Fact (1 < n)] (ho : Odd n) : 2 ^ s₀ n * oddPart (n - 1) < n - 1 := by
   conv_rhs => rw [← two_pow_val₂_mul_oddPart (n - 1)]
   gcongr
   · exact oddPart_pos
   · decide
-  · exact s₀_lt_val₂ hn ho
+  · exact s₀_lt_val₂ ho
 
 lemma le_s₀ {s : ℕ} {a : (ZMod n)ˣ} (hs : s < val₂ (n - 1))
     (ha : a ^ (2 ^ s * oddPart (n - 1)) = -1) : s ≤ s₀ n :=
   le_findGreatest (le_pred_of_lt hs) ⟨a, ha⟩
 
-def G (n : ℕ) : Subgroup (ZMod n)ˣ :=
+abbrev G (n : ℕ) : Subgroup (ZMod n)ˣ :=
   comap (powMonoidHom (2 ^ s₀ n * oddPart (n - 1))) (closure {-1})
 
 theorem nonwitnessGroup_le_G :
@@ -394,8 +393,8 @@ theorem nonwitnessGroup_le_G :
   intro a ha
   rw [G, mem_comap, powMonoidHom_apply]
   rcases spp_unit_iff.mp ha with ha | ⟨s, hs, ha⟩
-  · rw [mul_comm, pow_mul, ha, one_pow]
-    exact one_mem (Subgroup.closure {-1})
+  · rw [mul_comm, pow_mul]
+    simp [ha]
   · rw [← Nat.add_sub_cancel' (le_s₀ hs ha), pow_add, mul_right_comm, pow_mul, ha,
       mem_closure_singleton]
     use 2 ^ (s₀ n - s)
@@ -406,69 +405,61 @@ end DefS₀G
 section OfNotCarmichael
 
 /-- An equivalent of nonwitnessGroup but for Fermat probable primes. -/
-def F (n : ℕ) : Subgroup (ZMod n)ˣ :=
+abbrev F (n : ℕ) : Subgroup (ZMod n)ˣ :=
   (powMonoidHom (n - 1)).ker
 
-theorem G_lt_F_of_not_isPrimePow (hn : 2 ≤ n) (ho : Odd n) (hnp : ¬IsPrimePow n) :
+theorem G_lt_F_of_not_isPrimePow [hn : Fact (1 < n)] (ho : Odd n) (hnp : ¬IsPrimePow n) :
     G n < F n := by
   apply lt_of_le_of_ne
   · intro a
     rw [G, mem_comap, powMonoidHom_apply, F, MonoidHom.mem_ker, powMonoidHom_apply,
       mem_closure_neg_one]
     intro ha
-    rw [← two_pow_val₂_mul_oddPart (n - 1), ← Nat.sub_add_cancel (s₀_lt_val₂ hn ho), pow_add,
+    rw [← two_pow_val₂_mul_oddPart (n - 1), ← Nat.sub_add_cancel (s₀_lt_val₂ ho), pow_add,
       mul_assoc, mul_comm, pow_mul, Nat.pow_succ, mul_right_comm, pow_mul]
     rcases ha with ha | ha <;> rw [ha]
     · rw [one_pow, one_pow]
     · rw [neg_one_sq, one_pow]
   · let ⟨p, s, k, _, _, hpsk, cop, hk, hps⟩ :=
-      exists_pow_prime_dvd_and_coprime_of_odd hn ho hnp
-    let ⟨a₀, ha₀⟩ := s₀_spec hn
+      exists_pow_prime_dvd_and_coprime_of_odd hn.out ho hnp
+    let ⟨a₀, ha₀⟩ := s₀_spec n
     let a := (ZMod.chineseRemainderₓ cop).symm (ZMod.unitsMap ⟨k, hpsk⟩ a₀, 1)
     let a' := ZMod.unitsMap (dvd_of_eq hpsk) a
     have aF : a' ∈ F n := by
       suffices a ^ (n - 1) = 1 by
-        rw [F, MonoidHom.mem_ker, powMonoidHom_apply, ← map_pow, this, map_one]
+        simpa [a'] using congr(ZMod.unitsMap _ $this)
       suffices a₀ ^ (n - 1) = 1 by
         rw [← map_pow, Prod.pow_mk, one_pow, ← map_pow, this, map_one, ← Prod.one_eq_mk, map_one]
-      rw [← two_pow_val₂_mul_oddPart (n - 1), ← Nat.sub_add_cancel (s₀_lt_val₂ hn ho), pow_add,
-        mul_assoc, mul_comm, pow_mul, Nat.pow_succ, mul_right_comm, pow_mul, ha₀, neg_one_sq,
-        one_pow]
+      rw [← two_pow_val₂_mul_oddPart (n - 1), ← Nat.sub_add_cancel (s₀_lt_val₂ ho), pow_add,
+        mul_assoc, mul_comm, pow_mul, Nat.pow_succ, mul_right_comm, pow_mul, ha₀]
+      simp
     intro hGF
     rw [← hGF, G, mem_comap, powMonoidHom_apply, mem_closure_neg_one] at aF
     rcases aF with h | h <;>
       apply_fun ZMod.unitsMap (dvd_of_eq hpsk.symm) at h <;>
       rw [map_pow, ← MonoidHom.comp_apply, ZMod.unitsMap_comp, ZMod.unitsMap_self,
         MonoidHom.id_apply] at h
-    · have : Fact (p ^ s > 2) := ⟨hps⟩
-      apply_fun ZMod.unitsMap ⟨k, rfl⟩ at h
+    · apply @ZMod.neg_one_ne_one (p ^ s) ⟨hps⟩
       apply_fun ZMod.unitsMap ⟨k, hpsk⟩ at ha₀
-      rw [map_pow, unitsMap_neg_one] at ha₀
-      rw [map_one, map_one, map_pow, ZMod.unitsMap_chineseRemainderₓ_symm, ha₀] at h
-      exact ZMod.neg_one_ne_one (Units.ext_iff.mp h)
-    · have : Fact (k > 2) := ⟨hk⟩
-      apply_fun ZMod.unitsMap ⟨p ^ s, mul_comm _ _⟩ at h
-      rw [unitsMap_neg_one, unitsMap_neg_one, map_pow, ZMod.unitsMap_chineseRemainderₓ_symm',
-        one_pow] at h
-      exact ZMod.neg_one_ne_one (Units.ext_iff.mp h.symm)
+      rw [map_pow, ZMod.unitsMap_neg, map_one] at ha₀
+      simpa +zetaDelta [ha₀] using congr(ZMod.unitsMap ⟨k, rfl⟩ $h |>.val)
+    · apply @ZMod.neg_one_ne_one k ⟨hk⟩
+      simpa +zetaDelta using congr(ZMod.unitsMap ⟨p ^ s, mul_comm _ _⟩ $h |>.val).symm
 
 theorem F_lt_top_of_not_carmichael (hc : ¬FPP.Carmichael n): F n < ⊤ := by
   rw [lt_top_iff_ne_top]
-  intro ht
-  apply hc
-  rw [Subgroup.eq_top_iff'] at ht
+  contrapose! hc
   intro a
-  have := ht a
-  rwa [F, MonoidHom.mem_ker, powMonoidHom_apply, ← FPP.fpp_unit_iff] at this
+  simpa [FPP.fpp_unit_iff] using (Subgroup.eq_top_iff' _).mp hc a
 
 end OfNotCarmichael
 
 section OfCarmichael
 
-/-! We adapt the proof from [conrad], to a more inductive argument rather than to work with lists of
-primes. `H m` is here a subgroup of `(ZMod n)ˣ`, similar to H in [conrad] but `m`-indexed. -/
+/-! We adapt the proof from [conrad2011miller], to a more inductive argument rather than to work with lists of
+primes. `H m` is here a subgroup of `(ZMod n)ˣ`, similar to H in [conrad2011miller] but `m`-indexed. -/
 
-def H {m n : ℕ} (h : m ∣ n) : Subgroup (ZMod n)ˣ :=
+abbrev H {m n : ℕ} (h : m ∣ n) : Subgroup (ZMod n)ˣ :=
   comap (powMonoidHom (2 ^ s₀ n * oddPart (n - 1))) (comap (ZMod.unitsMap h) (closure {-1}))
 
 /-! We show, for n = m₁m₂m₃ where m₁, m₂, m₃ pairwise coprime (in particular when n Carmichael):
@@ -486,18 +477,13 @@ With this lemma, I think this generalizes beyond 3 without much difficulty:
   |G| ≤ 2ʳ⁻¹ φ(n) where r = n.primeFactors.length
 but is not needed for the 1/4 bound so not proven. -/
 
-theorem G_eq_H :
-    G n = H (dvd_refl n) := by
-  unfold H G
-  rw [ZMod.unitsMap_self, comap_id]
+theorem G_eq_H : G n = H (dvd_refl n) := by
+  simp [H]
 
-lemma H_one :
-    H (one_dvd n) = ⊤ := by
-  unfold H
+lemma H_one : H (one_dvd n) = ⊤ := by
   apply eq_top_iff.mpr
   intro _ _
-  rw [mem_comap, mem_comap, mem_closure_neg_one]
-  exact .inl (Subsingleton.eq_one _)
+  simpa using .inl (Subsingleton.eq_one _)
 
 lemma H_le_H_of_dvd {m₁ m₂ : ℕ} (h₁ : m₁ ∣ m₂) (h₂ : m₂ ∣ n) :
     H h₂ ≤ H (h₁.trans h₂) := by
@@ -508,9 +494,7 @@ lemma H_le_H_of_dvd {m₁ m₂ : ℕ} (h₁ : m₁ ∣ m₂) (h₂ : m₂ ∣ n)
   intro a ha
   rw [mem_comap]
   rw [mem_closure_neg_one] at ha ⊢
-  apply ha.imp <;> rintro rfl
-  · exact map_one _
-  · exact unitsMap_neg_one _
+  rcases ha with ha | ha <;> simp [ha]
 
 lemma H_mul_le_H_inf_H {m₁ m₂ : ℕ} (h : m₁ * m₂ ∣ n) :
     H h ≤ H (dvd_of_mul_right_dvd h) ⊓ H (dvd_of_mul_left_dvd h) :=
@@ -519,7 +503,7 @@ lemma H_mul_le_H_inf_H {m₁ m₂ : ℕ} (h : m₁ * m₂ ∣ n) :
 /-- The lemma mentioned above.
 Only used for h := dvd_of_eq _, but this very convenient for type casting. -/
 theorem H_inf_H_lt_H_inf_H_inf_H [NeZero n] {m₁ m₂ m₃ : ℕ}
-    (h₁ : m₁ > 2) (h₂ : m₂ > 2) (hc : m₁.Coprime (m₂ * m₃)) (h₁₂₃n : m₁ * m₂ * m₃ ∣ n) :
+    (h₁ : 2 < m₁) (h₂ : 2 < m₂) (hc : m₁.Coprime (m₂ * m₃)) (h₁₂₃n : m₁ * m₂ * m₃ ∣ n) :
     H (dvd_of_mul_right_dvd h₁₂₃n) ⊓ H (dvd_of_mul_left_dvd h₁₂₃n) <
       H (dvd_of_mul_right_dvd (dvd_of_mul_right_dvd h₁₂₃n)) ⊓
       H (dvd_of_mul_left_dvd (dvd_of_mul_right_dvd h₁₂₃n)) ⊓ H (dvd_of_mul_left_dvd h₁₂₃n) := by
@@ -529,10 +513,10 @@ theorem H_inf_H_lt_H_inf_H_inf_H [NeZero n] {m₁ m₂ m₃ : ℕ}
   have h₃n := dvd_of_mul_left_dvd h₁₂₃n
   have h₁₂₃'n := mul_assoc m₁ m₂ m₃ ▸ h₁₂₃n
   have h₂₃n := dvd_of_mul_left_dvd h₁₂₃'n
-  have hn : 2 ≤ n := h₁.le.trans (le_of_dvd (pos_iff_ne_zero.mpr NeZero.out) h₁n)
+  have hn : Fact (1 < n) := ⟨h₁.le.trans (le_of_dvd (pos_iff_ne_zero.mpr NeZero.out) h₁n)⟩
   apply lt_of_le_of_ne (inf_le_inf_right _ (H_mul_le_H_inf_H h₁₂n))
   intro hH
-  let ⟨a₀, ha₀⟩ := s₀_spec hn
+  let ⟨a₀, ha₀⟩ := s₀_spec n
   let a := (ZMod.chineseRemainderₓ hc).symm (ZMod.unitsMap h₁n a₀, 1)
   let ⟨b, hb⟩ := ZMod.unitsMap_surjective h₁₂₃'n a
   have : b ∈ H h₁₂n := by
@@ -542,45 +526,42 @@ theorem H_inf_H_lt_H_inf_H_inf_H [NeZero n] {m₁ m₂ m₃ : ℕ}
     constructor <;> rw [H, mem_comap, mem_comap, powMonoidHom_apply, mem_closure_neg_one]
     · right
       rw [← ZMod.unitsMap_comp (dvd_mul_right m₁ (m₂ * m₃)) h₁₂₃'n, map_pow, MonoidHom.comp_apply,
-        hb, ZMod.unitsMap_chineseRemainderₓ_symm, ← map_pow, ha₀, unitsMap_neg_one]
+        hb, ZMod.unitsMap_chineseRemainderₓ_symm, ← map_pow, ha₀, ZMod.unitsMap_neg, map_one]
     · left
       rw [← ZMod.unitsMap_comp (dvd_mul_left (m₂ * m₃) m₁) h₁₂₃'n, map_pow, MonoidHom.comp_apply,
         hb, ZMod.unitsMap_chineseRemainderₓ_symm', one_pow]
   rw [H, mem_comap, mem_comap, powMonoidHom_apply,
     ← ZMod.unitsMap_comp (mul_assoc m₁ m₂ m₃ ▸ dvd_mul_right (m₁ * m₂) m₃) h₁₂₃'n,
     MonoidHom.comp_apply, map_pow, hb, ← map_pow, Prod.pow_mk, one_pow, ← map_pow, ha₀,
-    unitsMap_neg_one, mem_closure_neg_one] at this
+    ZMod.unitsMap_neg, map_one, mem_closure_neg_one] at this
   rcases this with h | h
-  · apply_fun ZMod.unitsMap (dvd_mul_right m₁ m₂) at h
-    rw [← MonoidHom.comp_apply, ZMod.unitsMap_comp, ZMod.unitsMap_chineseRemainderₓ_symm, map_one] at h
-    have : Fact (m₁ > 2) := ⟨h₁⟩
-    exact ZMod.neg_one_ne_one (Units.ext_iff.mp h)
-  · apply_fun ZMod.unitsMap (dvd_mul_left m₂ m₁) at h
+  · apply_fun (ZMod.unitsMap (dvd_mul_right m₁ m₂) · |>.val) at h
+    apply @ZMod.neg_one_ne_one m₁ ⟨h₁⟩
+    simpa [← MonoidHom.comp_apply, ZMod.unitsMap_comp] using h
+  · apply_fun (ZMod.unitsMap (dvd_mul_left m₂ m₁) · |>.val) at h
+    apply @ZMod.neg_one_ne_one m₂ ⟨h₂⟩
     rw [← MonoidHom.comp_apply, ZMod.unitsMap_comp,
-      ← ZMod.unitsMap_comp (dvd_mul_right m₂ m₃) (dvd_mul_left (m₂ * m₃) m₁), MonoidHom.comp_apply,
-      ZMod.unitsMap_chineseRemainderₓ_symm', map_one, unitsMap_neg_one] at h
-    have : Fact (m₂ > 2) := ⟨h₂⟩
-    exact ZMod.neg_one_ne_one (Units.ext_iff.mp h.symm)
+      ← ZMod.unitsMap_comp (dvd_mul_right m₂ m₃) (dvd_mul_left (m₂ * m₃) m₁)] at h
+    simpa using h.symm
 
-theorem H_lt_H_inf_H {m₁ m₂ : ℕ} [NeZero n] (h₁ : m₁ > 2) (h₂ : m₂ > 2)
+theorem H_lt_H_inf_H {m₁ m₂ : ℕ} [NeZero n] (h₁ : 2 < m₁) (h₂ : 2 < m₂)
     (hc : m₁.Coprime m₂) (h : m₁ * m₂ ∣ n) :
     H h < H (dvd_of_mul_right_dvd h) ⊓ H (dvd_of_mul_left_dvd h) := by
   rw [← inf_top_eq (a := H h), ← inf_top_eq (a := H _ ⊓ H _), ← H_one]
   apply H_inf_H_lt_H_inf_H_inf_H h₁ h₂ <;> rwa [mul_one]
 
 -- Carmichael numbers are of the form of the lemma
-theorem eq_mul_mul_of_carmichael (hn : 2 ≤ n) (hc : FPP.Carmichael n) (hnp : ¬n.Prime) :
+theorem eq_mul_mul_of_carmichael [hn : Fact (1 < n)] (hc : FPP.Carmichael n) (hnp : ¬n.Prime) :
     ∃ m₁ m₂ m₃, n = m₁ * m₂ * m₃ ∧ m₁.Coprime m₂ ∧ m₁.Coprime m₃ ∧ m₂.Coprime m₃ ∧
-      m₁ > 2 ∧ m₂ > 2 ∧ m₃ > 2 := by
-    have h := hc.card_primeFactors hn hnp
-    have hnpp := hc.not_isPrimePow hn hnp
-    have : NeZero n := ⟨by omega⟩
+      2 < m₁ ∧ 2 < m₂ ∧ 2 < m₃ := by
+    have h := hc.card_primeFactors hnp
+    have hnpp := hc.not_isPrimePow hnp
     have hsf := hc.squarefree
-    rcases hn.eq_or_lt with rfl | hn2
+    rcases (show 2 ≤ n from hn.out).eq_or_lt with rfl | hn2
     · simp [Nat.prime_two] at hnp
     have ho := hc.odd hn2
     obtain ⟨p, s, k, pp, spos, rfl, pcop, hk, hps⟩ :=
-      exists_pow_prime_dvd_and_coprime_of_odd hn ho hnpp
+      exists_pow_prime_dvd_and_coprime_of_odd hn.out ho hnpp
     obtain rfl : s = 1 := by
       by_contra hs
       apply pow_two p ▸ squarefree_iff_prime_squarefree.mp hsf p pp
@@ -588,7 +569,6 @@ theorem eq_mul_mul_of_carmichael (hn : 2 ≤ n) (hc : FPP.Carmichael n) (hnp : �
       rw [← mul_assoc, ← pow_add,
         Nat.add_sub_cancel' (lt_of_le_of_ne spos.nat_succ_le (Ne.symm hs))]
     rw [p.pow_one] at *
-    have : Fact (k ≥ 2) := ⟨hk.le⟩
     have hok : Odd k := ho.of_dvd_nat ⟨p, mul_comm _ _⟩
     obtain ⟨q, t, l, _, _, rfl, qcop, hl, hqt⟩ :=
       exists_pow_prime_dvd_and_coprime_of_odd hk.le hok <| by
@@ -602,33 +582,37 @@ theorem eq_mul_mul_of_carmichael (hn : 2 ≤ n) (hc : FPP.Carmichael n) (hnp : �
 
 end OfCarmichael
 
-theorem nonwitnessGroup_lt_lt_of_not_isPrimePow (hn : 2 ≤ n) (ho : Odd n) (hnpp : ¬IsPrimePow n) :
+/-- By combining the cases for Carmichael and non-Carmichael, we get the following lemma,
+from which the Miller–Rabin property follows easily. -/
+theorem nonwitnessGroup_lt_lt_of_not_isPrimePow [Fact (1 < n)] (ho : Odd n) (hnpp : ¬IsPrimePow n) :
     ∃ K : Subgroup (ZMod n)ˣ, nonwitnessGroup n < K ∧ K < ⊤ := by
   have hnp : ¬n.Prime := fun np ↦ hnpp np.isPrimePow
-  have : NeZero n := ⟨by omega⟩
   by_cases hc : FPP.Carmichael n
-  · rcases eq_mul_mul_of_carmichael hn hc hnp with ⟨m₁, m₂, m₃, hn, h₁₂, h₁₃, h₂₃, h₁, h₂, h₃⟩
+  · rcases eq_mul_mul_of_carmichael hc hnp with ⟨m₁, m₂, m₃, hn, h₁₂, h₁₃, h₂₃, h₁, h₂, h₃⟩
     use H ((dvd_mul_right (m₁ * m₂) m₃).trans (dvd_of_eq hn.symm)) ⊓
       H ((dvd_mul_left m₃ (m₁ * m₂)).trans (dvd_of_eq hn.symm))
     constructor
     · calc
-      nonwitnessGroup n ≤ G n := nonwitnessGroup_le_G
-      G n = H (dvd_refl n) := G_eq_H
-      H _ = H (dvd_of_eq hn.symm) := le_antisymm (H_le_H_of_dvd (dvd_of_eq hn.symm) (dvd_refl n))
-        (H_le_H_of_dvd (dvd_of_eq hn) (dvd_of_eq hn.symm))
-      _ < _ := H_lt_H_inf_H ((by norm_num : 2 < 4).trans_le (Nat.mul_le_mul h₁.le h₂.le)) h₃
-        (h₁₃.mul_left h₂₃) (dvd_of_eq hn.symm)
+        _ ≤ G n := nonwitnessGroup_le_G
+        _ = H (dvd_refl n) := G_eq_H
+        _ = H (dvd_of_eq hn.symm) := le_antisymm (H_le_H_of_dvd (dvd_of_eq hn.symm) (dvd_refl n))
+          (H_le_H_of_dvd (dvd_of_eq hn) (dvd_of_eq hn.symm))
+        _ < _ := H_lt_H_inf_H ((by decide : 2 < 2 * 2).trans (by gcongr)) h₃
+          (h₁₃.mul_left h₂₃) (dvd_of_eq hn.symm)
     · calc
-      _ < H _ ⊓ H _ ⊓ H _ := H_inf_H_lt_H_inf_H_inf_H h₁ h₂ (h₁₂.mul_right h₁₃) (dvd_of_eq hn.symm)
-      _ ≤ ⊤ := le_top
+        _ < H _ ⊓ H _ ⊓ H _ := H_inf_H_lt_H_inf_H_inf_H h₁ h₂ (h₁₂.mul_right h₁₃) (dvd_of_eq hn.symm)
+        _ ≤ ⊤ := le_top
   · use F n
     constructor
     · calc
-      nonwitnessGroup n ≤ G n := nonwitnessGroup_le_G
-      G n < F n := G_lt_F_of_not_isPrimePow hn ho hnpp
+        _ ≤ G n := nonwitnessGroup_le_G
+        _ < F n := G_lt_F_of_not_isPrimePow ho hnpp
     · exact F_lt_top_of_not_carmichael hc
 
-theorem card_nonwitnessGroup_of_not_prime (hn : 2 ≤ n)
+/--
+The proportion of Miller–Rabin nonwitnesses of odd composite `n` in `(ZMod n)ˣ` is at most 1/4.
+-/
+theorem card_nonwitnessGroup_le_of_not_prime [Fact (1 < n)]
     (ho : Odd n) (hnp : ¬n.Prime) (h9 : n ≠ 9) :
     4 * Nat.card (nonwitnessGroup n) ≤ φ n := by
   by_cases hpp : IsPrimePow n
@@ -636,7 +620,7 @@ theorem card_nonwitnessGroup_of_not_prime (hn : 2 ≤ n)
     obtain rfl := h
     replace pp := pp.nat_prime
     have : Fact p.Prime := ⟨pp⟩
-    have hp : p > 2 := lt_of_le_of_ne pp.two_le fun hp ↦ ho.not_two_dvd_nat ⟨p ^ m.pred,
+    have hp : 2 < p := lt_of_le_of_ne pp.two_le fun hp ↦ ho.not_two_dvd_nat ⟨p ^ m.pred,
       by rw [← hp, mul_comm, ← Nat.pow_succ, m.succ_pred hm.ne']⟩
     calc
     _ = 4 * (p - 1) := by rw [card_nonwitnessGroup_of_prime_pow hm hp]
@@ -645,29 +629,32 @@ theorem card_nonwitnessGroup_of_not_prime (hn : 2 ≤ n)
       apply Nat.mul_le_mul_right
       replace hm := lt_of_le_of_ne hm.nat_succ_le fun pm ↦ hnp (by rwa [← pm, pow_one])
       rcases hm.nat_succ_le.eq_or_lt with rfl | hm
-      · rw [pow_one]; by_contra hp
+      · rw [pow_one]
+        by_contra hp
         interval_cases p
         exact h9 rfl
       apply (pow_le_pow_left' pp.two_le 2).trans
       exact pow_le_pow_right' pp.pos (le_pred_of_lt hm)
-  · have ⟨K, hK₁, hK₂⟩ := nonwitnessGroup_lt_lt_of_not_isPrimePow hn ho hpp
+  · have ⟨K, hK₁, hK₂⟩ := nonwitnessGroup_lt_lt_of_not_isPrimePow ho hpp
     classical
-    have : NeZero n := ⟨by omega⟩
     calc
       _ = 2 * (2 * Nat.card (nonwitnessGroup n)) := by rw [← mul_assoc]; rfl
-      _ ≤ 2 * Nat.card K := Nat.mul_le_mul_left 2 (card_mul_two_le_of_lt hK₁)
-      _ ≤ Nat.card (⊤ : Subgroup _) := card_mul_two_le_of_lt hK₂
+      _ ≤ 2 * Nat.card K := Nat.mul_le_mul_left 2 (two_mul_card_le_card_of_lt hK₁)
+      _ ≤ Nat.card (⊤ : Subgroup _) := two_mul_card_le_card_of_lt hK₂
       _ = Fintype.card (ZMod n)ˣ := card_top.trans Nat.card_eq_fintype_card
       _ = φ n := ZMod.card_units_eq_totient n
 
 end NonwitnessGroup
 
-/-- The proportion of Miller–Rabin nonwitnesses of composite `n` is at most 1/4. -/
-theorem card_of_not_prime {n : ℕ} (hn : 2 ≤ n) (ho : Odd n) (hnp : ¬n.Prime) :
-    4 * Nat.card {a // SPP n a} ≤ n - 1 := by
-  by_cases h9 : n = 9
-  · obtain rfl := h9
-    have val28 : val₂ 8 = 3 := padicValNat.prime_pow 3
+open Finset
+
+/--
+The proportion of Miller–Rabin nonwitnesses of odd composite `n` in `ZMod n \ {0}` is at most 1/4.
+-/
+theorem card_le_of_not_prime {n : ℕ} [hn : Fact (1 < n)] (ho : Odd n) (hnp : ¬n.Prime) :
+    4 * #{a | SPP n a} ≤ n - 1 := by
+  rcases eq_or_ne n 9 with rfl | h9
+  · have val28 : val₂ 8 = 3 := padicValNat.prime_pow 3
     have (a : ZMod 9) : SPP 9 a ↔ a = 1 ∨ a = -1 := by
       rw [SPP, oddPart, val28]
       constructor
@@ -675,21 +662,54 @@ theorem card_of_not_prime {n : ℕ} (hn : 2 ≤ n) (ho : Odd n) (hnp : ¬n.Prime
         intro ⟨h1, hn1⟩
         fin_cases a <;> first | contradiction | decide
       · rintro (rfl | rfl) <;> decide
-    simp_rw [Nat.card_eq_fintype_card, Fintype.card_subtype, this]
-    decide
+    simp_rw [this]
+    decide +revert
   · calc
-      4 * Nat.card {a // SPP n a} ≤ 4 * Nat.card (nonwitnessGroup n) := by
+      _ = 4 * Nat.card {a // SPP n a} := by simp [Fintype.card_subtype]
+      _ ≤ 4 * Nat.card (nonwitnessGroup n) := by
         gcongr
         have (x : {a // SPP n a}) : ∃ a' : nonwitnessGroup n, a'.val.val = x.val := by
-          choose a' ha' using x.prop.isUnit hn
+          choose a' ha' using x.prop.isUnit
           use ⟨a', mem_nonwitnessGroup (ha' ▸ x.prop)⟩
         choose f hf using this
         apply Nat.card_le_card_of_injective f
         intro ⟨a₁, ha₁⟩ ⟨a₂, ha₂⟩ h
-        apply_fun ((↑) : _ → (ZMod n)ˣ) at h
-        apply_fun ((↑) : _ → ZMod n) at h
-        simpa [hf] using h
-      _ ≤ φ n := card_nonwitnessGroup_of_not_prime hn ho hnp h9
-      _ ≤ n - 1 := le_pred_of_lt (totient_lt n hn)
+        simpa [hf] using congr(($h).val.val)
+      _ ≤ φ n := card_nonwitnessGroup_le_of_not_prime ho hnp h9
+      _ ≤ n - 1 := le_pred_of_lt (totient_lt n hn.out)
+
+section Probability
+
+open MeasureTheory ProbabilityTheory
+open scoped ENNReal
+
+noncomputable def millerRabinRandomSource (n : ℕ) [Fact (1 < n)] : PMF (ZMod n) :=
+  PMF.uniformOfFinset {0}ᶜ ⟨1, by simp⟩
+
+/-- The same in terms of probability. -/
+theorem measure_le_of_not_prime {n : ℕ} [hn : Fact (1 < n)] (ho : Odd n) (hnp : ¬n.Prime) :
+    (millerRabinRandomSource n).toMeasure {a | SPP n a} ≤ 1 / 4 := by
+  calc
+    _ = #{a | SPP n a} / (n - 1 : ℝ≥0∞) := by
+      erw [PMF.toMeasure_uniformOfFinset_apply (ht := by measurability),
+        Finset.filter_congr_decidable]
+      have h : ({a ≠ 0 | SPP n a} : Finset _) = ({a | SPP n a} : Finset _) := by
+        ext a
+        suffices SPP n a → a ≠ 0 by simpa
+        rintro h rfl
+        exact not_spp_zero n h
+      simp [Finset.card_compl, h]
+    _ = (4 * #{a | SPP n a}) / (n - 1) / 4 := by
+      rw [mul_div_assoc, mul_comm 4, ENNReal.mul_div_cancel_right] <;> norm_num
+    _ ≤ (n - 1) / (n - 1) / 4 := by
+      gcongr
+      norm_cast
+      exact card_le_of_not_prime ho hnp
+    _ = 1 / 4 := by
+      rw [ENNReal.div_self]
+      · norm_cast; have := hn.out; omega
+      · simp
+
+end Probability
 
 end SPP

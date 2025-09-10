@@ -25,7 +25,7 @@ variable {n : ℕ}
 theorem val₂_of_odd (h : Odd n) : val₂ n = 0 :=
   padicValNat.eq_zero_of_not_dvd h.not_two_dvd_nat
 
-theorem val₂_of_even [hn : NeZero n] (h : Even n) : val₂ n > 0 :=
+theorem val₂_of_even [hn : NeZero n] (h : Even n) : 0 < val₂ n :=
   pos_iff_ne_zero.mpr ((dvd_iff_padicValNat_ne_zero hn.out).mp h.two_dvd)
 
 theorem odd_oddPart [hn : NeZero n] : Odd (oddPart n) := by
@@ -36,7 +36,7 @@ theorem odd_oddPart [hn : NeZero n] : Odd (oddPart n) := by
   convert mul_dvd_mul_left _ (dvd_of_mod_eq_zero h)
   exact (two_pow_val₂_mul_oddPart n).symm
 
-theorem oddPart_pos [NeZero n] : oddPart n > 0 := odd_oddPart.pos
+theorem oddPart_pos [NeZero n] : 0 < oddPart n := odd_oddPart.pos
 
 theorem oddPart_of_odd (ho : Odd n) : oddPart n = n :=
   by rw [oddPart, val₂_of_odd ho, Nat.pow_zero, Nat.div_one]

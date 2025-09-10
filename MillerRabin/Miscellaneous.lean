@@ -21,20 +21,22 @@ theorem nonwitnessGroup_of_not_isSquare_neg_one {n : ℕ} (hn : 2 ≤ n) (ho : O
     rw [spp_unit_iff] at ha
     apply ha.imp_right
     intro ⟨s, hs, hs'⟩
-    cases' s with s _
-    · rwa [Nat.pow_zero, one_mul] at hs'
-    · absurd hn
+    cases s with
+    | zero => rwa [Nat.pow_zero, one_mul] at hs'
+    | succ s =>
+      absurd hn
       use a ^ (2 ^ s * oddPart (n - 1))
+      rw [Nat.pow_succ, mul_right_comm, pow_mul, pow_two] at hs'
       norm_cast
-      rw [← pow_two, ← pow_mul, mul_right_comm, ← Nat.pow_succ, hs', Int.cast_negSucc, zero_add,
-        Units.coe_neg_one, cast_one]
+      simp [hs']
   · intro a ha
     apply mem_nonwitnessGroup
     rw [mem_comap, powMonoidHom_apply, mem_closure_neg_one] at ha
     rw [spp_unit_iff]
     apply ha.imp_right
     intro ha
+    have : NeZero (n - 1) := ⟨by omega⟩
     use 0, val₂_of_even (Nat.Odd.sub_odd ho odd_one)
-    rwa [Nat.pow_zero, one_mul]
+    simpa
 
 end SPP
